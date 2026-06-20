@@ -1,0 +1,599 @@
+package protocol
+
+import (
+	"Shroud/identity"
+	"net"
+)
+
+var Upstream string
+var Downstream string
+
+var defaultE2EKeyForPeer func(string) []byte
+var defaultCommandSigner *identity.AdminStore
+var defaultCommandVerifier *identity.AgentStore
+
+func SetSecurityContext(resolver func(string) []byte, signer *identity.AdminStore, verifier *identity.AgentStore) {
+	defaultE2EKeyForPeer = resolver
+	defaultCommandSigner = signer
+	defaultCommandVerifier = verifier
+}
+
+func SecurityResolver() func(string) []byte  { return defaultE2EKeyForPeer }
+func SecuritySigner() *identity.AdminStore   { return defaultCommandSigner }
+func SecurityVerifier() *identity.AgentStore { return defaultCommandVerifier }
+
+const (
+	HI = iota
+	UUID
+	CHILDUUIDREQ
+	CHILDUUIDRES
+	MYINFO
+	MYMEMO
+	SHELLREQ
+	SHELLRES
+	SHELLCOMMAND
+	SHELLRESULT
+	SHELLEXIT
+	LISTENREQ
+	LISTENRES
+	SSHREQ
+	SSHRES
+	SSHCOMMAND
+	SSHRESULT
+	SSHEXIT
+	SSHTUNNELREQ
+	SSHTUNNELRES
+	FILESTATREQ
+	FILESTATRES
+	FILEDATA
+	FILEERR
+	FILEDOWNREQ
+	FILEDOWNRES
+	SOCKSSTART
+	SOCKSTCPDATA
+	SOCKSUDPDATA
+	UDPASSSTART
+	UDPASSRES
+	SOCKSTCPFIN
+	SOCKSREADY
+	FORWARDTEST
+	FORWARDSTART
+	FORWARDREADY
+	FORWARDDATA
+	FORWARDFIN
+	BACKWARDTEST
+	BACKWARDSTART
+	BACKWARDSEQ
+	BACKWARDREADY
+	BACKWARDDATA
+	BACKWARDFIN
+	BACKWARDSTOP
+	BACKWARDSTOPDONE
+	CONNECTSTART
+	CONNECTDONE
+	NODEOFFLINE
+	NODEREONLINE
+	UPSTREAMOFFLINE
+	UPSTREAMREONLINE
+	SHUTDOWN
+	HEARTBEAT
+	TRANSPORTSWITCHREQ
+	TRANSPORTSWITCHRES
+	TRANSPORTSWITCHDONE
+	ROUTETABLE
+)
+
+var ADMIN_UUID = "IAMADMINXD"
+var TEMP_UUID = "IAMNEWHERE"
+var TEMP_ROUTE = ""
+
+func SetAdminUUID(uuid string) {
+	if len(uuid) != 10 {
+		panic("ADMIN_UUID must be exactly 10 bytes")
+	}
+	ADMIN_UUID = uuid
+}
+
+func SetTempUUID(uuid string) {
+	if len(uuid) != 10 {
+		panic("TEMP_UUID must be exactly 10 bytes")
+	}
+	TEMP_UUID = uuid
+}
+
+type Proto interface {
+	CNegotiate() error
+	SNegotiate() error
+}
+
+type NegParam struct {
+	Domain string
+	Conn   net.Conn
+}
+
+type Message interface {
+	ConstructHeader()
+	ConstructData(*Header, interface{}, bool)
+	ConstructSuffix()
+	DeconstructHeader()
+	DeconstructData() (*Header, interface{}, error)
+	DeconstructSuffix()
+	SendMessage()
+}
+
+func ConstructMessage(message Message, header *Header, mess interface{}, isPass bool) {
+	message.ConstructData(header, mess, isPass)
+	message.ConstructHeader()
+	message.ConstructSuffix()
+}
+
+func DestructMessage(message Message) (*Header, interface{}, error) {
+	message.DeconstructHeader()
+	header, mess, err := message.DeconstructData()
+	message.DeconstructSuffix()
+	return header, mess, err
+}
+
+type Header struct {
+	Sender      string // sender and accepter are both 10bytes
+	Accepter    string
+	MessageType uint16
+	RouteLen    uint32
+	Route       string
+	DataLen     uint64
+}
+
+type HIMess struct {
+	GreetingLen uint16
+	Greeting    string
+	UUIDLen     uint16
+	UUID        string
+	IsAdmin     uint16
+	IsReconnect uint16
+}
+
+type UUIDMess struct {
+	UUIDLen uint16
+	UUID    string
+}
+
+type ChildUUIDReq struct {
+	ParentUUIDLen uint16
+	ParentUUID    string
+	IPLen         uint16
+	IP            string
+
+	// Optional identity material for child enrollment/certificate binding.
+	// WantsEnrollment=1 means Ed25519Public/X25519Public are a CSR relayed
+	// from an unenrolled child and admin must return EnrollmentResponse.
+	WantsEnrollment  uint16
+	Ed25519PublicLen uint16
+	Ed25519Public    []byte
+	X25519PublicLen  uint16
+	X25519Public     []byte
+	CertLen          uint32
+	Cert             identity.Certificate
+}
+
+type ChildUUIDRes struct {
+	UUIDLen uint16
+	UUID    string
+
+	OK                    uint16
+	ErrorLen              uint16
+	Error                 string
+	EnrollmentResponseLen uint32
+	EnrollmentResponse    identity.EnrollmentResponse
+}
+
+type MyInfo struct {
+	UUIDLen     uint16
+	UUID        string
+	UsernameLen uint64
+	Username    string
+	HostnameLen uint64
+	Hostname    string
+	MemoLen     uint64
+	Memo        string
+}
+
+type MyMemo struct {
+	MemoLen uint64
+	Memo    string
+}
+
+type ShellReq struct {
+	Start uint16
+}
+
+type ShellRes struct {
+	OK uint16
+}
+
+type ShellCommand struct {
+	CommandLen uint64
+	Command    string
+}
+
+type ShellResult struct {
+	ResultLen uint64
+	Result    string
+}
+
+type ShellExit struct {
+	OK uint16
+}
+
+type ListenReq struct {
+	Method  uint16
+	AddrLen uint64
+	Addr    string
+}
+
+type ListenRes struct {
+	OK uint16
+}
+
+type SSHReq struct {
+	Method                uint16
+	AddrLen               uint16
+	Addr                  string
+	UsernameLen           uint64
+	Username              string
+	PasswordLen           uint64
+	Password              string
+	CertificateLen        uint64
+	Certificate           []byte
+	HostKeyFingerprintLen uint16
+	HostKeyFingerprint    string
+}
+
+type SSHRes struct {
+	OK uint16
+}
+
+type SSHCommand struct {
+	CommandLen uint64
+	Command    string
+}
+
+type SSHResult struct {
+	ResultLen uint64
+	Result    string
+}
+
+type SSHExit struct {
+	OK uint16
+}
+
+type SSHTunnelReq struct {
+	Method                uint16
+	AddrLen               uint16
+	Addr                  string
+	PortLen               uint16
+	Port                  string
+	UsernameLen           uint64
+	Username              string
+	PasswordLen           uint64
+	Password              string
+	CertificateLen        uint64
+	Certificate           []byte
+	HostKeyFingerprintLen uint16
+	HostKeyFingerprint    string
+}
+
+type SSHTunnelRes struct {
+	OK uint16
+}
+
+type FileStatReq struct {
+	TransferID  uint64
+	FilenameLen uint32
+	Filename    string
+	FileSize    uint64
+	SliceNum    uint64
+}
+
+type FileStatRes struct {
+	TransferID uint64
+	OK         uint16
+}
+
+type FileData struct {
+	TransferID uint64
+	DataLen    uint64
+	Data       []byte
+}
+
+type FileErr struct {
+	TransferID uint64
+	Error      uint16
+}
+
+type FileDownReq struct {
+	TransferID  uint64
+	FilePathLen uint32
+	FilePath    string
+	FilenameLen uint32
+	Filename    string
+}
+
+type FileDownRes struct {
+	TransferID uint64
+	OK         uint16
+}
+
+type SocksStart struct {
+	UsernameLen uint64
+	Username    string
+	PasswordLen uint64
+	Password    string
+}
+
+type SocksTCPData struct {
+	Seq     uint64
+	DataLen uint64
+	Data    []byte
+}
+
+type SocksUDPData struct {
+	Seq     uint64
+	DataLen uint64
+	Data    []byte
+}
+
+type UDPAssStart struct {
+	Seq           uint64
+	SourceAddrLen uint16
+	SourceAddr    string
+}
+
+type UDPAssRes struct {
+	Seq     uint64
+	OK      uint16
+	AddrLen uint16
+	Addr    string
+}
+
+type SocksTCPFin struct {
+	Seq uint64
+}
+
+type SocksReady struct {
+	OK uint16
+}
+
+type ForwardTest struct {
+	AddrLen uint16
+	Addr    string
+}
+
+type ForwardStart struct {
+	Seq     uint64
+	AddrLen uint16
+	Addr    string
+}
+
+type ForwardReady struct {
+	OK uint16
+}
+
+type ForwardData struct {
+	Seq     uint64
+	DataLen uint64
+	Data    []byte
+}
+
+type ForwardFin struct {
+	Seq uint64
+}
+
+type BackwardTest struct {
+	LPortLen uint16
+	LPort    string
+	RPortLen uint16
+	RPort    string
+}
+
+type BackwardStart struct {
+	UUIDLen  uint16
+	UUID     string
+	LPortLen uint16
+	LPort    string
+	RPortLen uint16
+	RPort    string
+}
+
+type BackwardReady struct {
+	OK uint16
+}
+
+type BackwardSeq struct {
+	Seq      uint64
+	RPortLen uint16
+	RPort    string
+}
+
+type BackwardData struct {
+	Seq     uint64
+	DataLen uint64
+	Data    []byte
+}
+
+type BackWardFin struct {
+	Seq uint64
+}
+
+type BackwardStop struct {
+	All      uint16
+	RPortLen uint16
+	RPort    string
+}
+
+type BackwardStopDone struct {
+	All      uint16
+	UUIDLen  uint16
+	UUID     string
+	RPortLen uint16
+	RPort    string
+}
+
+type ConnectStart struct {
+	AddrLen uint16
+	Addr    string
+}
+
+type ConnectDone struct {
+	OK uint16
+}
+
+type NodeOffline struct {
+	UUIDLen uint16
+	UUID    string
+}
+
+type NodeReonline struct {
+	ParentUUIDLen uint16
+	ParentUUID    string
+	UUIDLen       uint16
+	UUID          string
+	IPLen         uint16
+	IP            string
+}
+
+type UpstreamOffline struct {
+	OK uint16
+}
+
+type UpstreamReonline struct {
+	OK uint16
+}
+
+type Shutdown struct {
+	OK uint16
+}
+
+type HeartbeatMsg struct {
+	Ping uint16
+}
+
+type TransportSwitchReq struct {
+	Method  uint16
+	AddrLen uint16
+	Addr    string
+}
+
+type TransportSwitchRes struct {
+	OK      uint16
+	AddrLen uint16
+	Addr    string
+}
+
+type TransportSwitchDone struct {
+	OK uint16
+}
+
+type RouteTableMsg struct {
+	EntriesLen uint32
+	Entries    string
+}
+
+type MessageComponent struct {
+	UUID            string
+	Conn            net.Conn
+	CryptoKey       []byte
+	E2EKey          []byte
+	E2EKeyResolver  func(string) []byte
+	CommandSigner   *identity.AdminStore
+	CommandVerifier *identity.AgentStore
+}
+
+func SetUpDownStream(upstream, downstream string) {
+	if upstream == "ws" {
+		Upstream = "ws"
+	} else {
+		Upstream = "raw"
+	}
+
+	if downstream == "ws" {
+		Downstream = "ws"
+	} else {
+		Downstream = "raw"
+	}
+}
+
+func NewUpProto(param *NegParam) Proto {
+	switch Upstream {
+	case "ws":
+		tProto := new(WSProto)
+		tProto.domain = param.Domain
+		tProto.conn = param.Conn
+		return tProto
+	default:
+		return new(RawProto)
+	}
+}
+
+func NewDownProto(param *NegParam) Proto {
+	switch Downstream {
+	case "ws":
+		tProto := new(WSProto)
+		tProto.domain = param.Domain
+		tProto.conn = param.Conn
+		return tProto
+	default:
+		return new(RawProto)
+	}
+}
+
+func newRawMsg(conn net.Conn, cryptoKey, linkKey []byte, uuid string) *RawMessage {
+	return &RawMessage{
+		Conn:            conn,
+		UUID:            uuid,
+		CryptoSecret:    cryptoKey,
+		LinkKey:         linkKey,
+		E2EKeyResolver:  defaultE2EKeyForPeer,
+		CommandSigner:   defaultCommandSigner,
+		CommandVerifier: defaultCommandVerifier,
+	}
+}
+
+func NewSecureUpMsg(component *MessageComponent, linkKey []byte) Message {
+	raw := newRawMsg(component.Conn, component.CryptoKey, linkKey, component.UUID)
+	raw.E2EKey = component.E2EKey
+	raw.E2EKeyResolver = component.E2EKeyResolver
+	raw.CommandSigner = component.CommandSigner
+	raw.CommandVerifier = component.CommandVerifier
+	if Upstream == "ws" {
+		return &WSMessage{RawMessage: raw}
+	}
+	return raw
+}
+
+func NewSecureDownMsg(component *MessageComponent, linkKey []byte) Message {
+	raw := newRawMsg(component.Conn, component.CryptoKey, linkKey, component.UUID)
+	raw.E2EKey = component.E2EKey
+	raw.E2EKeyResolver = component.E2EKeyResolver
+	raw.CommandSigner = component.CommandSigner
+	raw.CommandVerifier = component.CommandVerifier
+	if Downstream == "ws" {
+		return &WSMessage{RawMessage: raw}
+	}
+	return raw
+}
+
+func NewUpMsg(conn net.Conn, cryptoKey, linkKey []byte, uuid string) Message {
+	raw := newRawMsg(conn, cryptoKey, linkKey, uuid)
+	if Upstream == "ws" {
+		return &WSMessage{RawMessage: raw}
+	}
+	return raw
+}
+
+func NewDownMsg(conn net.Conn, cryptoKey, linkKey []byte, uuid string) Message {
+	raw := newRawMsg(conn, cryptoKey, linkKey, uuid)
+	if Downstream == "ws" {
+		return &WSMessage{RawMessage: raw}
+	}
+	return raw
+}
