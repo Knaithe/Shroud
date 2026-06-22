@@ -417,10 +417,12 @@ func (agent *Agent) handleHeartbeat(header *protocol.Header, msg *protocol.Heart
 }
 
 func (agent *Agent) heartbeatWatchdog() {
-	atomic.StoreInt64(&agent.lastHeartbeat, time.Now().Unix())
 	for {
 		time.Sleep(30 * time.Second)
 		last := atomic.LoadInt64(&agent.lastHeartbeat)
+		if last == 0 {
+			continue
+		}
 		if time.Now().Unix()-last > 90 {
 			cleanShutdown()
 		}
