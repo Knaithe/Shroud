@@ -27,7 +27,7 @@ func newConnect(addr string) *Connect {
 func (connect *Connect) start(mgr *manager.Manager) {
 	var sUMessage, sLMessage, rMessage protocol.Message
 
-	sUMessage = protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sUMessage = protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	hiHeader := &protocol.Header{
 		Sender:      protocol.ADMIN_UUID, // fake admin
@@ -39,8 +39,8 @@ func (connect *Connect) start(mgr *manager.Manager) {
 
 	// fake admin
 	hiMess := &protocol.HIMess{
-		GreetingLen: uint16(len("Shhh...")),
-		Greeting:    "Shhh...",
+		GreetingLen: uint16(len(share.GreetHello())),
+		Greeting:    share.GreetHello(),
 		UUIDLen:     uint16(len(protocol.ADMIN_UUID)),
 		UUID:        protocol.ADMIN_UUID,
 		IsAdmin:     1,
@@ -135,7 +135,7 @@ func (connect *Connect) start(mgr *manager.Manager) {
 
 	if fHeader.MessageType == protocol.HI {
 		mmess := fMessage.(*protocol.HIMess)
-		if mmess.Greeting == "Keep silent" && mmess.IsAdmin == 0 {
+		if mmess.Greeting == share.GreetAck() && mmess.IsAdmin == 0 {
 			if mmess.IsReconnect == 0 {
 				childIP := conn.RemoteAddr().String()
 

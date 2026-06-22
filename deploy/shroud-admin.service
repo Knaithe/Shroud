@@ -1,0 +1,31 @@
+[Unit]
+Description=Shroud Admin Node
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/shroud/shroud_admin --daemon -c %i -s ${SHROUD_SECRET} --heartbeat --tls-enable --tls-insecure
+EnvironmentFile=-/etc/shroud/admin.env
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+MemoryDenyWriteExecute=yes
+LockPersonality=yes
+
+# Identity storage
+ReadWritePaths=/var/lib/shroud
+
+[Install]
+WantedBy=multi-user.target

@@ -22,7 +22,7 @@ func newForward(seq uint64, addr string) *Forward {
 }
 
 func (forward *Forward) start(mgr *manager.Manager) {
-	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	finHeader := &protocol.Header{
 		Sender:      global.G_Component.UUID,
@@ -96,7 +96,7 @@ func (forward *Forward) start(mgr *manager.Manager) {
 }
 
 func testForward(addr string) {
-	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	header := &protocol.Header{
 		Sender:      global.G_Component.UUID,

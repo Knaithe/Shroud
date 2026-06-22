@@ -6,6 +6,7 @@ import (
 
 	"Shroud/identity"
 	"Shroud/protocol"
+	"Shroud/utils"
 )
 
 var Session *SessionConfig
@@ -14,7 +15,7 @@ type SessionConfig struct {
 	mu sync.Mutex
 
 	Component       *protocol.MessageComponent
-	LinkKey         []byte
+	linkKey         []byte
 	TLSEnable       bool
 	TLSFingerprint  string
 	TLSInsecure     bool
@@ -40,14 +41,14 @@ func InitSession(conn net.Conn, cryptoKey []byte, uuid string) {
 
 func (s *SessionConfig) UpdateConn(conn net.Conn) {
 	s.mu.Lock()
-	s.Component.Conn = conn
+	s.Component.Conn = utils.WrapConn(conn)
 	s.mu.Unlock()
 }
 
 func (s *SessionConfig) SwapConn(newConn net.Conn) net.Conn {
 	s.mu.Lock()
 	oldConn := s.Component.Conn
-	s.Component.Conn = newConn
+	s.Component.Conn = utils.WrapConn(newConn)
 	s.mu.Unlock()
 	return oldConn
 }
@@ -57,6 +58,18 @@ func (s *SessionConfig) SignalTransportSwitch() {
 	case s.TransportSwitch <- struct{}{}:
 	default:
 	}
+}
+
+func (s *SessionConfig) SetLinkKey(key []byte) {
+	s.mu.Lock()
+	s.linkKey = key
+	s.mu.Unlock()
+}
+
+func (s *SessionConfig) GetLinkKey() []byte {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.linkKey
 }
 
 func (s *SessionConfig) SetTransportMode(mode string) {
@@ -99,6 +112,10 @@ func SetTransportMode(mode string) {
 func GetTransportMode() string {
 	return Session.GetTransportMode()
 }
+
+// AdminCleanExit is set by admin/admin.go after globals are initialized.
+// It wipes cryptographic seeds and keys, closes the connection, then exits.
+var AdminCleanExit func()
 
 // Consolidated globals — previously scattered individual vars.
 

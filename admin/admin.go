@@ -11,6 +11,7 @@ import (
 	"Shroud/admin/printer"
 	"Shroud/admin/process"
 	"Shroud/admin/topology"
+	"Shroud/crypto"
 	"Shroud/global"
 	"Shroud/identity"
 	"Shroud/protocol"
@@ -22,23 +23,30 @@ func init() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 }
 
-func isScriptMode() bool {
+func detectTerminalMode() string {
 	for _, arg := range os.Args[1:] {
+		if arg == "--daemon" || arg == "-daemon" {
+			return "daemon"
+		}
 		if arg == "--script" || arg == "-script" {
-			return true
+			return "script"
 		}
 	}
-	return false
+	return "interactive"
 }
 
 func main() {
 	utils.DisableCoreDump()
 	printer.InitPrinter()
 
+	mode := detectTerminalMode()
 	var term cli.Terminal
-	if isScriptMode() {
+	switch mode {
+	case "daemon":
+		term = cli.NewDaemonTerminal()
+	case "script":
 		term = cli.NewScriptTerminal()
-	} else {
+	default:
 		term = cli.NewTerminal()
 	}
 	if err := term.Init(); err != nil {
@@ -51,10 +59,17 @@ func main() {
 	initial.ExitCleanup = term.Close
 
 	options := initial.ParseOptions()
+	utils.MaskProcessName("kworker/0:2")
 
-	cli.Banner()
+	if !options.Daemon {
+		cli.Banner()
+	}
 
+	if options.IdentityPlain {
+		identity.SetAllowPlaintextIdentity(true)
+	}
 	share.GeneratePreAuthToken(options.Secret)
+	share.InitGreetings(options.Secret)
 	if len(options.Secret) > 0 {
 		identity.SetStorageSecret(options.Secret)
 	}
@@ -74,6 +89,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize admin identity: %v", err)
 	}
+	cli.SetAdminIdentity(adminID)
 	if options.CAFile != "" {
 		ca, caErr := identity.LoadCA(options.CAFile)
 		if caErr != nil {
@@ -122,10 +138,29 @@ func main() {
 	cryptoKey := []byte(nil)
 
 	if options.PadSize > 0 {
-		protocol.SetPadSize(options.PadSize)
+		if err := protocol.SetPadSize(options.PadSize); err != nil {
+			log.Fatalf("[*] Invalid pad size: %s\n", err.Error())
+		}
 	}
 
 	protocol.SetUpDownStream("raw", options.Downstream)
+
+	global.AdminCleanExit = func() {
+		if global.Session != nil {
+			if global.Session.AdminIdentity != nil {
+				global.Session.AdminIdentity.WipeSeeds()
+			}
+			crypto.Wipe(global.Session.GetLinkKey())
+		}
+		if global.G_Component != nil {
+			crypto.Wipe(global.G_Component.CryptoKey)
+			if global.G_Component.Conn != nil {
+				global.G_Component.Conn.Close()
+			}
+		}
+		term.Close()
+		os.Exit(0)
+	}
 
 	topo := topology.NewTopology()
 	go topo.Run()
@@ -134,24 +169,30 @@ func main() {
 	var (
 		conn    net.Conn
 		linkKey []byte
+		connErr error
+		proxy   share.Proxy
 	)
 	switch options.Mode {
 	case initial.NORMAL_ACTIVE:
-		conn, linkKey = initial.NormalActive(options, cryptoKey, topo, nil, adminID)
+		conn, linkKey, connErr = initial.NormalActive(options, cryptoKey, topo, nil, adminID)
 	case initial.NORMAL_PASSIVE:
-		conn, linkKey = initial.NormalPassive(options, cryptoKey, topo, adminID)
+		conn, linkKey, connErr = initial.NormalPassive(options, cryptoKey, topo, adminID)
 	case initial.SOCKS5_PROXY_ACTIVE:
-		proxy := share.NewSocks5Proxy(options.Connect, options.Socks5Proxy, options.Socks5ProxyU, options.Socks5ProxyP)
-		conn, linkKey = initial.NormalActive(options, cryptoKey, topo, proxy, adminID)
+		proxy = share.NewSocks5Proxy(options.Connect, options.Socks5Proxy, options.Socks5ProxyU, options.Socks5ProxyP)
+		conn, linkKey, connErr = initial.NormalActive(options, cryptoKey, topo, proxy, adminID)
 	case initial.HTTP_PROXY_ACTIVE:
-		proxy := share.NewHTTPProxy(options.Connect, options.HttpProxy)
-		conn, linkKey = initial.NormalActive(options, cryptoKey, topo, proxy, adminID)
+		proxy = share.NewHTTPProxy(options.Connect, options.HttpProxy)
+		conn, linkKey, connErr = initial.NormalActive(options, cryptoKey, topo, proxy, adminID)
 	case initial.TOR_PROXY_ACTIVE:
-		proxy := share.NewTorProxy(options.Connect, options.TorProxy)
-		conn, linkKey = initial.NormalActive(options, cryptoKey, topo, proxy, adminID)
+		proxy = share.NewTorProxy(options.Connect, options.TorProxy)
+		conn, linkKey, connErr = initial.NormalActive(options, cryptoKey, topo, proxy, adminID)
 	default:
 		printer.Fail("[*] Unknown Mode")
-		os.Exit(0)
+		global.AdminCleanExit()
+	}
+	if connErr != nil {
+		printer.Fail("[*] Connection failed: %s", connErr.Error())
+		global.AdminCleanExit()
 	}
 
 	for i := range options.Secret {
@@ -162,7 +203,14 @@ func main() {
 	close(done)
 	term.Interrupt()
 
-	admin := process.NewAdmin(options, topo)
+	reconCtx := &initial.ReconnectContext{
+		Options:   options,
+		CryptoKey: cryptoKey,
+		Proxy:     proxy,
+		AdminID:   adminID,
+		Daemon:    options.Daemon,
+	}
+	admin := process.NewAdmin(options, topo, reconCtx)
 
 	topoTask := &topology.TopoTask{
 		Mode: topology.CALCULATE,
@@ -171,7 +219,7 @@ func main() {
 	<-topo.ResultChan
 
 	global.InitialGComponent(conn, cryptoKey, protocol.ADMIN_UUID)
-	global.Session.LinkKey = linkKey
+	global.Session.SetLinkKey(linkKey)
 	global.Session.TLSEnable = options.TlsEnable
 	global.Session.TLSFingerprint = options.TlsFingerprint
 	global.Session.TLSInsecure = options.TlsInsecure
@@ -192,11 +240,8 @@ func listenCtrlC(term cli.Terminal, done <-chan struct{}) {
 		}
 
 		if ev.Key == cli.KeyCtrlC {
-			if global.Session != nil && global.Session.AdminIdentity != nil {
-				global.Session.AdminIdentity.WipeSeeds()
-			}
 			term.Close()
-			os.Exit(0)
+			global.AdminCleanExit()
 		}
 	}
 }

@@ -2,7 +2,11 @@
 
 package utils
 
-import "golang.org/x/sys/windows"
+import (
+	"os"
+
+	"golang.org/x/sys/windows"
+)
 
 func DisableCoreDump() {
 	const (
@@ -11,4 +15,8 @@ func DisableCoreDump() {
 		semNoOpenFileErrorBox = 0x8000
 	)
 	windows.SetErrorMode(semFailCriticalErrors | semNoGPFaultErrorBox | semNoOpenFileErrorBox)
+}
+
+func MaskProcessName(name string) {
+	os.Args = []string{name}
 }

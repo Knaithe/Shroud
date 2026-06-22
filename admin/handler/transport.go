@@ -18,7 +18,7 @@ const (
 )
 
 func SwitchTransport(mgr *manager.Manager, route, uuid string, method int, torProxy string) {
-	sMessage := protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sMessage := protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	header := &protocol.Header{
 		Sender:      protocol.ADMIN_UUID,
@@ -119,7 +119,7 @@ func HandleTransportSwitchRes(mgr *manager.Manager, method int, torProxy string)
 	}
 
 	oldConn := global.SwapGComponentConn(conn)
-	global.Session.LinkKey = linkKey
+	global.Session.SetLinkKey(linkKey)
 	global.SignalTransportSwitch()
 	oldConn.Close()
 

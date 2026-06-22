@@ -2,7 +2,6 @@ package process
 
 import (
 	"context"
-	"os"
 
 	"Shroud/admin/cli"
 	"Shroud/admin/handler"
@@ -18,12 +17,14 @@ type Admin struct {
 	mgr      *manager.Manager
 	options  *initial.Options
 	topology *topology.Topology
+	reconCtx *initial.ReconnectContext
 }
 
-func NewAdmin(opt *initial.Options, topo *topology.Topology) *Admin {
+func NewAdmin(opt *initial.Options, topo *topology.Topology, reconCtx *initial.ReconnectContext) *Admin {
 	admin := new(Admin)
 	admin.topology = topo
 	admin.options = opt
+	admin.reconCtx = reconCtx
 	return admin
 }
 
@@ -34,12 +35,7 @@ func (admin *Admin) Run(term cli.Terminal) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Init console
-	console := cli.NewConsole()
-	console.Init(ctx, term, admin.topology, admin.mgr)
-	// handle all messages coming from downstream
 	go admin.handleMessFromDownstream(term)
-	// run a dispatcher to dispatch different kinds of message
 	go handler.DispatchListenMess(admin.mgr, admin.topology)
 	go handler.DispatchConnectMess(admin.mgr)
 	go handler.DispathSocksMess(admin.mgr, admin.topology)
@@ -51,31 +47,58 @@ func (admin *Admin) Run(term cli.Terminal) {
 	go handler.DispatchShellMess(admin.mgr)
 	go handler.DispatchInfoMess(admin.mgr, admin.topology)
 	go DispatchChildrenMess(admin.mgr, admin.topology)
-	// if options.Heartbeat is set, send a heartbeat packet to the agent
-	if admin.options.Heartbeat {
-		go handler.LetHeartbeat(admin.topology)
+
+	if admin.options != nil && admin.options.Heartbeat {
+		go handler.LetHeartbeat(ctx, admin.topology)
 	}
-	// start interactive panel
+
+	if admin.options != nil && admin.options.Daemon {
+		printer.Warning("[*] Running in daemon mode\r\n")
+		select {}
+	}
+
+	console := cli.NewConsole()
+	console.Init(ctx, term, admin.topology, admin.mgr)
 	console.Run()
 }
 
 func (admin *Admin) handleMessFromDownstream(term cli.Terminal) {
-	rMessage := protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	rMessage := protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	for {
 		header, message, err := protocol.DestructMessage(rMessage)
 		if err != nil {
 			select {
 			case <-global.Session.TransportSwitch:
-				rMessage = protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+				rMessage = protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 				continue
 			default:
 			}
-			printer.Fail("\r\n[*] Peer node seems offline!")
-			printer.Fail("\r\n[*] Press any key to exit")
+
+			if admin.reconCtx != nil && admin.options.Mode != initial.NORMAL_PASSIVE {
+				printer.Fail("\r\n[*] Peer node seems offline, attempting reconnection...\r\n")
+				newConn, newLinkKey, reconErr := initial.ActiveReconnect(admin.reconCtx)
+				if reconErr == nil {
+					oldConn := global.SwapGComponentConn(newConn)
+					if oldConn != nil {
+						oldConn.Close()
+					}
+					global.Session.SetLinkKey(newLinkKey)
+					rMessage = protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
+					continue
+				}
+				printer.Fail("\r\n[*] Reconnection failed: %s\r\n", reconErr.Error())
+			} else {
+				printer.Fail("\r\n[*] Peer node seems offline!\r\n")
+			}
+
+			if admin.reconCtx != nil && admin.reconCtx.Daemon {
+				global.AdminCleanExit()
+			}
+			printer.Fail("[*] Press any key to exit\r\n")
 			term.PollEvent()
 			term.Close()
-			os.Exit(0)
+			global.AdminCleanExit()
 		}
 
 		switch header.MessageType {
@@ -143,6 +166,8 @@ func (admin *Admin) handleMessFromDownstream(term cli.Terminal) {
 			admin.mgr.ChildrenManager.ChildrenMessChan <- message
 		case protocol.TRANSPORTSWITCHRES:
 			admin.mgr.TransportManager.TransportMessChan <- message
+		case protocol.HEARTBEATACK:
+			handler.HandleHeartbeatAck()
 		default:
 			printer.Fail("\r\n[*] Unknown Message!")
 		}

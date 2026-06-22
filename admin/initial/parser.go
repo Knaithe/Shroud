@@ -38,10 +38,12 @@ type Options struct {
 	TlsInsecure    bool
 	Heartbeat      bool
 	Script         bool
+	Daemon         bool
 	Magic          string
 	WSPath         string
 	IdentityDir    string
 	Passphrase     string
+	IdentityPlain  bool
 	CAFile         string
 	PadSize        int
 }
@@ -69,10 +71,12 @@ func init() {
 	flag.StringVar(&args.TlsFingerprint, "tls-fingerprint", "", "Expected TLS certificate SHA256 fingerprint for pinning")
 	flag.BoolVar(&args.TlsInsecure, "tls-insecure", false, "Allow TLS without certificate pinning (TOFU mode)")
 	flag.BoolVar(&args.Script, "script", false, "Read commands from stdin instead of interactive terminal")
+	flag.BoolVar(&args.Daemon, "daemon", false, "Run as headless daemon (no interactive terminal)")
 	flag.StringVar(&args.Magic, "magic", "", "4-byte preauth magic override")
 	flag.StringVar(&args.WSPath, "ws-path", "", "WebSocket path override")
 	flag.StringVar(&args.IdentityDir, "identity-dir", "", "Identity storage directory")
 	flag.StringVar(&args.Passphrase, "passphrase", "", "Passphrase for encrypting identity files")
+	flag.BoolVar(&args.IdentityPlain, "identity-plain", false, "Allow plaintext identity storage (unsafe)")
 	flag.StringVar(&args.CAFile, "ca-file", "", "Separate CA key file (offline CA)")
 	flag.IntVar(&args.PadSize, "pad-size", 0, "Traffic padding block size")
 

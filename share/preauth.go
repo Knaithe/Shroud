@@ -23,6 +23,8 @@ var AuthKey []byte
 
 var magic = mustRandomMagic()
 
+var ErrPeerNoCert = errors.New("peer does not support certificate authentication")
+
 const (
 	authModeCert             byte = 3
 	authModeTokenEnroll      byte = 4
@@ -500,6 +502,9 @@ func activeCertAuth(conn net.Conn, agent *identity.AgentStore) (clientNonce, ser
 func activeCertAuthWithMaterial(conn net.Conn, localCert identity.Certificate, localPriv ed25519.PrivateKey, verifier interface {
 	VerifyPeerCertificate(identity.Certificate) error
 }) (clientNonce, serverNonce []byte, peerCert identity.Certificate, err error) {
+	if conn == nil {
+		return nil, nil, peerCert, errors.New("nil connection")
+	}
 	defer conn.SetReadDeadline(time.Time{})
 	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 	if len(localCert.Signature) == 0 {
@@ -535,6 +540,9 @@ func activeCertAuthWithMaterial(conn net.Conn, localCert identity.Certificate, l
 	var resp CertAuthResponse
 	if err = readJSONRecord(conn, &resp, 1<<20); err != nil {
 		conn.Close()
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+			return nil, nil, peerCert, fmt.Errorf("%w: %v", ErrPeerNoCert, err)
+		}
 		return nil, nil, peerCert, err
 	}
 	if verifier != nil {

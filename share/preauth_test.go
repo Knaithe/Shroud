@@ -13,6 +13,10 @@ import (
 	"Shroud/identity"
 )
 
+func init() {
+	identity.SetAllowPlaintextIdentity(true)
+}
+
 func TestTokenGenerationConsistency(t *testing.T) {
 	GeneratePreAuthToken([]byte("secret-A"))
 	keyA1 := append([]byte(nil), AuthKey...)

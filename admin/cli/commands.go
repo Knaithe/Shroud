@@ -32,6 +32,7 @@ var nodeCommands = map[string]command{
 	"addmemo":      {name: "addmemo", handler: (*Console).cmdAddMemo},
 	"delmemo":      {name: "delmemo", handler: (*Console).cmdDelMemo},
 	"shutdown":     {name: "shutdown", handler: (*Console).cmdShutdown},
+	"revoke":       {name: "revoke", handler: (*Console).cmdRevoke},
 }
 
 func (console *Console) expectParams(params []string, numbers interface{}, mode int, needToBeInt interface{}) bool {

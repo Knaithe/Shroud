@@ -43,10 +43,12 @@ func upstreamOffline(mgr *manager.Manager, options *initial.Options) {
 		newConn, linkKey = normalReconnActiveReconn(options, proxy)
 	case initial.TOR_HIDDEN_PASSIVE:
 		newConn, linkKey = torHiddenPassiveReconn(options)
+	default:
+		cleanShutdown()
 	}
 
 	global.UpdateGComponent(newConn)
-	global.Session.LinkKey = linkKey
+	global.Session.SetLinkKey(linkKey)
 	share.ClearPreAuthToken()
 
 	tellAdminReonline(mgr)
@@ -123,7 +125,7 @@ func broadcastReonlineMess(mgr *manager.Manager) {
 func downStreamOffline(mgr *manager.Manager, options *initial.Options, uuid string) {
 	mgr.ChildrenManager.DelChild(uuid)
 
-	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	header := &protocol.Header{
 		Sender:      global.G_Component.UUID,
@@ -145,7 +147,7 @@ func downStreamOffline(mgr *manager.Manager, options *initial.Options, uuid stri
 func tellAdminReonline(mgr *manager.Manager) {
 	children := mgr.ChildrenManager.GetAllChildren()
 
-	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	reheader := &protocol.Header{
 		Sender:      global.G_Component.UUID,

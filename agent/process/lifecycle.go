@@ -64,7 +64,7 @@ func SelfDestruct(selfDelete bool) {
 		if global.Session.AgentIdentity != nil {
 			global.Session.AgentIdentity.WipeSeeds()
 		}
-		crypto.Wipe(global.Session.LinkKey)
+		crypto.Wipe(global.Session.GetLinkKey())
 	}
 	if global.G_Component != nil {
 		crypto.Wipe(global.G_Component.CryptoKey)

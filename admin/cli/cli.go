@@ -51,6 +51,7 @@ func ShowNodeHelp() {
 	stopbackward                                    Shut down backward services
 	transport  [tor|raw]                            Show/switch transport mode (Node 0 only)
 	newcircuit                                      Request a new Tor circuit
+	revoke                                          Revoke node certificate and shutdown
 	shutdown                                        Terminate current node
 	back                                            Back to parent panel
 	exit                                            Exit Shroud

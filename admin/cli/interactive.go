@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"Shroud/admin/manager"
@@ -475,7 +474,7 @@ func (console *Console) handleMainPanelCommand() {
 			if option == "y" {
 				printer.Warning("\r\n[*] BYE!")
 				console.term.Close()
-				os.Exit(0)
+				global.AdminCleanExit()
 			}
 
 			console.status = "(admin) >> "
@@ -558,7 +557,7 @@ func (console *Console) handleNodePanelCommand(uuidNum int) {
 			if option == "y" {
 				printer.Warning("\r\n[*] BYE!")
 				console.term.Close()
-				os.Exit(0)
+				global.AdminCleanExit()
 			}
 
 			console.status = fmt.Sprintf("(node %d) >> ", uuidNum)
@@ -572,7 +571,7 @@ func (console *Console) handleNodePanelCommand(uuidNum int) {
 }
 
 func (console *Console) handleShellPanelCommand(route string, uuid string) {
-	sMessage := protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sMessage := protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	header := &protocol.Header{
 		Sender:      protocol.ADMIN_UUID,
@@ -600,7 +599,7 @@ func (console *Console) handleShellPanelCommand(route string, uuid string) {
 }
 
 func (console *Console) handleSSHPanelCommand(route string, uuid string) {
-	sMessage := protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sMessage := protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	header := &protocol.Header{
 		Sender:      protocol.ADMIN_UUID,

@@ -16,8 +16,10 @@ import (
 	"Shroud/utils"
 )
 
-// TODO: The WebSocket data frames still have some issues See: https://datatracker.ietf.org/doc/html/rfc6455#section-5.
-// But in actual testing, the NGINX reverse proxy works fine. Let's temporarily enable it, and if any issues arise, we can make improvements later.
+// KNOWN ISSUE: WebSocket framing is not fully RFC6455 compliant.
+// Missing: client-to-server masking, proper opcode handling, ping/pong, close frames.
+// Works with Nginx reverse proxy in practice, but may fail with strict WAF/DPI.
+// Full RFC6455 compliance or migration to gorilla/websocket is a future milestone.
 const websocketGUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 var websocketPath = mustRandomWebSocketPath()

@@ -6,7 +6,7 @@ import (
 )
 
 func (socks *Socks) checkMethod(setting *Setting, data []byte, seq uint64) {
-	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	header := &protocol.Header{
 		Sender:      global.G_Component.UUID,
@@ -86,7 +86,7 @@ func (socks *Socks) checkMethod(setting *Setting, data []byte, seq uint64) {
 }
 
 func (socks *Socks) auth(setting *Setting, data []byte, seq uint64) {
-	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	header := &protocol.Header{
 		Sender:      global.G_Component.UUID,

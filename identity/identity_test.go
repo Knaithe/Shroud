@@ -5,6 +5,10 @@ import (
 	"testing"
 )
 
+func init() {
+	allowPlaintextIdentity = true
+}
+
 func TestEnrollAgentConsumesTokenAndIssuesUsableCert(t *testing.T) {
 	admin, err := LoadOrCreateAdmin(t.TempDir() + "/admin.json")
 	if err != nil {

@@ -141,7 +141,7 @@ func (listen *Listen) torHiddenConfig(options *initial.Options) (listenConfig, e
 }
 
 func (listen *Listen) start(ctx context.Context, mgr *manager.Manager, options *initial.Options) {
-	sUMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sUMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	resHeader := &protocol.Header{
 		Sender:      global.G_Component.UUID,
@@ -191,7 +191,7 @@ func (listen *Listen) start(ctx context.Context, mgr *manager.Manager, options *
 }
 
 func (listen *Listen) runListenLoop(ctx context.Context, mgr *manager.Manager, cfg listenConfig) {
-	sUMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sUMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	resHeader := &protocol.Header{
 		Sender:      global.G_Component.UUID,
@@ -265,14 +265,14 @@ func (listen *Listen) runListenLoop(ctx context.Context, mgr *manager.Manager, c
 		if fHeader.MessageType == protocol.HI {
 			mmess := fMessage.(*protocol.HIMess)
 
-			if mmess.Greeting == "Shhh..." && mmess.IsAdmin == 0 {
+			if mmess.Greeting == share.GreetHello() && mmess.IsAdmin == 0 {
 				var childUUID string
 
 				sLMessage := protocol.NewDownMsg(conn, global.G_Component.CryptoKey, linkKey, protocol.ADMIN_UUID)
 
 				hiMess := &protocol.HIMess{
-					GreetingLen: uint16(len("Keep silent")),
-					Greeting:    "Keep silent",
+					GreetingLen: uint16(len(share.GreetAck())),
+					Greeting:    share.GreetAck(),
 					UUIDLen:     uint16(len(protocol.ADMIN_UUID)),
 					UUID:        protocol.ADMIN_UUID,
 					IsAdmin:     1,

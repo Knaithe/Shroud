@@ -94,14 +94,10 @@ func TestGenNonce_Uniqueness(t *testing.T) {
 // AESEncrypt
 // ---------------------------------------------------------------------------
 
-func TestAESEncrypt_NilKey_Passthrough(t *testing.T) {
-	plain := []byte("pass through data")
-	out, err := AESEncrypt(plain, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !bytes.Equal(out, plain) {
-		t.Fatal("nil key should return plaintext unchanged")
+func TestAESEncrypt_NilKey_Rejected(t *testing.T) {
+	_, err := AESEncrypt([]byte("data"), nil)
+	if err == nil {
+		t.Fatal("expected error for nil key")
 	}
 }
 
@@ -145,14 +141,10 @@ func TestAESEncrypt_InvalidKeySize(t *testing.T) {
 // AESDecrypt
 // ---------------------------------------------------------------------------
 
-func TestAESDecrypt_NilKey_Passthrough(t *testing.T) {
-	ct := []byte("raw bytes")
-	out, err := AESDecrypt(ct, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !bytes.Equal(out, ct) {
-		t.Fatal("nil key should return ciphertext unchanged")
+func TestAESDecrypt_NilKey_Rejected(t *testing.T) {
+	_, err := AESDecrypt([]byte("data"), nil)
+	if err == nil {
+		t.Fatal("expected error for nil key")
 	}
 }
 

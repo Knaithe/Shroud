@@ -28,7 +28,7 @@ func (shell *Shell) start() {
 	var cmd *exec.Cmd
 	var err error
 
-	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	shellResHeader := &protocol.Header{
 		Sender:      global.G_Component.UUID,
@@ -152,6 +152,9 @@ func DispatchShellMess(mgr *manager.Manager, options *initial.Options) {
 			shell = newShell(options)
 			go shell.start()
 		case *protocol.ShellCommand:
+			if shell == nil {
+				continue
+			}
 			shell.input(mess.Command)
 		}
 	}

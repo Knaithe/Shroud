@@ -89,9 +89,9 @@ func (file *MyFile) SendFileStat(route string, targetUUID string, identity int) 
 	var err error
 	var sMessage protocol.Message
 	if identity == ADMIN {
-		sMessage = protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+		sMessage = protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 	} else {
-		sMessage = protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+		sMessage = protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 	}
 
 	statHeader := &protocol.Header{
@@ -164,9 +164,9 @@ func (file *MyFile) CheckFileStat(route string, targetUUID string, identity int)
 	var sMessage protocol.Message
 
 	if identity == ADMIN {
-		sMessage = protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+		sMessage = protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 	} else {
-		sMessage = protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+		sMessage = protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 	}
 
 	header := &protocol.Header{
@@ -215,9 +215,9 @@ func (file *MyFile) CheckFileStat(route string, targetUUID string, identity int)
 func (file *MyFile) Upload(route string, targetUUID string, identity int) {
 	var sMessage protocol.Message
 	if identity == ADMIN {
-		sMessage = protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+		sMessage = protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 	} else {
-		sMessage = protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+		sMessage = protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 	}
 
 	dataHeader := &protocol.Header{
@@ -310,7 +310,7 @@ func (file *MyFile) Receive(route string, targetUUID string, identity int) {
 }
 
 func (file *MyFile) Ask4Download(route string, targetUUID string) {
-	sMessage := protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sMessage := protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	header := &protocol.Header{
 		Sender:      global.G_Component.UUID,

@@ -15,7 +15,7 @@ func TestNewAdmin(t *testing.T) {
 	}
 	topo := topology.NewTopology()
 
-	admin := NewAdmin(opt, topo)
+	admin := NewAdmin(opt, topo, nil)
 	if admin == nil {
 		t.Fatal("NewAdmin returned nil")
 	}
@@ -32,7 +32,7 @@ func TestNewAdmin(t *testing.T) {
 
 func TestNewAdmin_NilOptions(t *testing.T) {
 	topo := topology.NewTopology()
-	admin := NewAdmin(nil, topo)
+	admin := NewAdmin(nil, topo, nil)
 	if admin == nil {
 		t.Fatal("NewAdmin returned nil with nil options")
 	}
@@ -45,7 +45,7 @@ func TestNewAdmin_NilTopology(t *testing.T) {
 	opt := &initial.Options{
 		Secret: []byte("test"),
 	}
-	admin := NewAdmin(opt, nil)
+	admin := NewAdmin(opt, nil, nil)
 	if admin == nil {
 		t.Fatal("NewAdmin returned nil with nil topology")
 	}
@@ -59,8 +59,8 @@ func TestNewAdmin_MultipleInstances(t *testing.T) {
 	opt2 := &initial.Options{Secret: []byte("s2"), Connect: "10.0.0.1:9090"}
 	topo := topology.NewTopology()
 
-	a1 := NewAdmin(opt1, topo)
-	a2 := NewAdmin(opt2, topo)
+	a1 := NewAdmin(opt1, topo, nil)
+	a2 := NewAdmin(opt2, topo, nil)
 
 	if a1 == a2 {
 		t.Error("different NewAdmin calls should return different instances")

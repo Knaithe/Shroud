@@ -30,7 +30,7 @@ func (forward *Forward) LetForward(ctx context.Context, mgr *manager.Manager, ro
 		return err
 	}
 
-	sMessage := protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sMessage := protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	header := &protocol.Header{
 		Sender:      protocol.ADMIN_UUID,
@@ -91,7 +91,7 @@ func (forward *Forward) handleForwardListener(ctx context.Context, mgr *manager.
 }
 
 func (forward *Forward) handleForward(mgr *manager.Manager, conn net.Conn, route string, uuid string, seq uint64) {
-	sMessage := protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sMessage := protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 	startHeader := &protocol.Header{
 		Sender:      protocol.ADMIN_UUID,
 		Accepter:    uuid,

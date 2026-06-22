@@ -81,6 +81,7 @@ const (
 	TRANSPORTSWITCHRES
 	TRANSPORTSWITCHDONE
 	ROUTETABLE
+	HEARTBEATACK
 )
 
 var ADMIN_UUID = "IAMADMINXD"
@@ -475,6 +476,11 @@ type Shutdown struct {
 
 type HeartbeatMsg struct {
 	Ping uint16
+	Seq  uint64
+}
+
+type HeartbeatAckMsg struct {
+	Seq uint64
 }
 
 type TransportSwitchReq struct {

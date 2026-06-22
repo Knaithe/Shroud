@@ -7,6 +7,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"Shroud/agent/handler"
@@ -28,8 +29,9 @@ type Agent struct {
 
 	childrenMessChan chan *ChildrenMess
 
-	routeTable map[string]string
-	routeMu    sync.RWMutex
+	routeTable    map[string]string
+	routeMu       sync.RWMutex
+	lastHeartbeat int64
 }
 
 func (agent *Agent) updateRouteTable(table map[string]string) {
@@ -85,13 +87,15 @@ func (agent *Agent) Run() {
 	go agent.dispatchChildrenMess()
 	// waiting for child
 	go agent.waitingChild()
+	// heartbeat watchdog
+	go agent.heartbeatWatchdog()
 	// process data from upstream
 	agent.handleDataFromUpstream()
 	//agent.handleDataFromDownstream()
 }
 
 func (agent *Agent) sendMyInfo() {
-	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 	header := &protocol.Header{
 		Sender:      agent.UUID,
 		Accepter:    protocol.ADMIN_UUID,
@@ -118,19 +122,19 @@ func (agent *Agent) sendMyInfo() {
 }
 
 func (agent *Agent) handleDataFromUpstream() {
-	rMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	rMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	for {
 		header, message, err := protocol.DestructMessage(rMessage)
 		if err != nil {
 			select {
 			case <-global.Session.TransportSwitch:
-				rMessage = protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+				rMessage = protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 				continue
 			default:
 			}
 			upstreamOffline(agent.mgr, agent.options)
-			rMessage = protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+			rMessage = protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 			go agent.sendMyInfo()
 			continue
 		}
@@ -138,8 +142,11 @@ func (agent *Agent) handleDataFromUpstream() {
 		if header.Accepter == agent.UUID {
 			switch header.MessageType {
 			case protocol.MYMEMO:
-				message := message.(*protocol.MyMemo)
-				agent.Memo = message.Memo // no need to pass this like all the message below,just change memo directly
+				mmsg, ok := message.(*protocol.MyMemo)
+				if !ok {
+					continue
+				}
+				agent.Memo = mmsg.Memo
 			case protocol.SHELLREQ:
 				fallthrough
 			case protocol.SHELLCOMMAND:
@@ -199,23 +206,39 @@ func (agent *Agent) handleDataFromUpstream() {
 			case protocol.UPSTREAMREONLINE:
 				agent.mgr.OfflineManager.OfflineMessChan <- message
 			case protocol.TRANSPORTSWITCHREQ:
-				go agent.handleTransportSwitch(message.(*protocol.TransportSwitchReq))
+				tsReq, ok := message.(*protocol.TransportSwitchReq)
+				if !ok {
+					continue
+				}
+				go agent.handleTransportSwitch(tsReq)
 			case protocol.SHUTDOWN:
 				cleanShutdown()
 			case protocol.HEARTBEAT:
+				hbMsg, ok := message.(*protocol.HeartbeatMsg)
+				if !ok {
+					continue
+				}
+				agent.handleHeartbeat(header, hbMsg)
 			case protocol.ROUTETABLE:
-				msg := message.(*protocol.RouteTableMsg)
+				rtMsg, ok := message.(*protocol.RouteTableMsg)
+				if !ok {
+					continue
+				}
 				var table map[string]string
-				if err := json.Unmarshal([]byte(msg.Entries), &table); err == nil {
+				if err := json.Unmarshal([]byte(rtMsg.Entries), &table); err == nil {
 					agent.updateRouteTable(table)
 				}
 			default:
 				log.Println("[*] Unknown Message!")
 			}
 		} else {
+			raw, ok := message.([]byte)
+			if !ok {
+				continue
+			}
 			agent.childrenMessChan <- &ChildrenMess{
 				cHeader:  header,
-				cMessage: message.([]byte),
+				cMessage: raw,
 			}
 		}
 	}
@@ -237,7 +260,10 @@ func (agent *Agent) dispatchChildrenMess() {
 			continue
 		}
 
-		childLinkKey, _ := agent.mgr.ChildrenManager.GetLinkKey(childUUID)
+		childLinkKey, ok := agent.mgr.ChildrenManager.GetLinkKey(childUUID)
+		if !ok {
+			continue
+		}
 
 		sMessage := protocol.NewDownMsg(conn, global.G_Component.CryptoKey, childLinkKey, global.G_Component.UUID)
 
@@ -254,7 +280,10 @@ func (agent *Agent) waitingChild() {
 }
 
 func (agent *Agent) handleDataFromDownstream(conn net.Conn, uuid string) {
-	childLinkKey, _ := agent.mgr.ChildrenManager.GetLinkKey(uuid)
+	childLinkKey, ok := agent.mgr.ChildrenManager.GetLinkKey(uuid)
+	if !ok {
+		return
+	}
 	rMessage := protocol.NewDownMsg(conn, global.G_Component.CryptoKey, childLinkKey, global.G_Component.UUID)
 
 	for {
@@ -264,7 +293,7 @@ func (agent *Agent) handleDataFromDownstream(conn net.Conn, uuid string) {
 			return
 		}
 
-		sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+		sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 		protocol.ConstructMessage(sMessage, header, message, true)
 		sMessage.SendMessage()
@@ -285,9 +314,11 @@ func (agent *Agent) handleTransportSwitch(req *protocol.TransportSwitchReq) {
 	}
 
 	actualAddr := listener.Addr().String()
-	agent.sendTransportSwitchRes(1, actualAddr)
+	if tcpL, ok := listener.(*net.TCPListener); ok {
+		tcpL.SetDeadline(time.Now().Add(30 * time.Second))
+	}
 
-	listener.(*net.TCPListener).SetDeadline(time.Now().Add(30 * time.Second))
+	agent.sendTransportSwitchRes(1, actualAddr)
 
 	conn, err := listener.Accept()
 	listener.Close()
@@ -326,7 +357,7 @@ func (agent *Agent) handleTransportSwitch(req *protocol.TransportSwitchReq) {
 			global.SetTransportMode("raw")
 		}
 		oldConn := global.SwapGComponentConn(conn)
-		global.Session.LinkKey = linkKey
+		global.Session.SetLinkKey(linkKey)
 		global.SignalTransportSwitch()
 		oldConn.Close()
 		go agent.sendMyInfo()
@@ -336,7 +367,7 @@ func (agent *Agent) handleTransportSwitch(req *protocol.TransportSwitchReq) {
 }
 
 func (agent *Agent) sendTransportSwitchRes(ok uint16, addr string) {
-	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 	header := &protocol.Header{
 		Sender:      agent.UUID,
 		Accepter:    protocol.ADMIN_UUID,
@@ -367,4 +398,31 @@ func changeRoute(header *protocol.Header) string {
 	header.RouteLen = uint32(len(header.Route))
 	return routes[0]
 
+}
+
+func (agent *Agent) handleHeartbeat(header *protocol.Header, msg *protocol.HeartbeatMsg) {
+	atomic.StoreInt64(&agent.lastHeartbeat, time.Now().Unix())
+
+	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
+	ackHeader := &protocol.Header{
+		Sender:      agent.UUID,
+		Accepter:    protocol.ADMIN_UUID,
+		MessageType: protocol.HEARTBEATACK,
+		RouteLen:    uint32(len(header.Route)),
+		Route:       header.Route,
+	}
+	ackMess := &protocol.HeartbeatAckMsg{Seq: msg.Seq}
+	protocol.ConstructMessage(sMessage, ackHeader, ackMess, false)
+	sMessage.SendMessage()
+}
+
+func (agent *Agent) heartbeatWatchdog() {
+	atomic.StoreInt64(&agent.lastHeartbeat, time.Now().Unix())
+	for {
+		time.Sleep(30 * time.Second)
+		last := atomic.LoadInt64(&agent.lastHeartbeat)
+		if time.Now().Unix()-last > 90 {
+			cleanShutdown()
+		}
+	}
 }

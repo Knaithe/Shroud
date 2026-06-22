@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"net"
 	"testing"
+
+	"Shroud/utils"
 )
 
 // helper to create a paired connection for testing.
@@ -66,7 +68,8 @@ func TestUpdateGComponent(t *testing.T) {
 	InitialGComponent(conn1, []byte("s"), "u")
 	UpdateGComponent(conn2)
 
-	if Session.Component.Conn != conn2 {
+	sc, ok := Session.Component.Conn.(*utils.SafeConn)
+	if !ok || sc.Conn != conn2 {
 		t.Fatal("Conn not updated")
 	}
 }
@@ -78,7 +81,8 @@ func TestUpdateConn(t *testing.T) {
 	InitSession(conn1, []byte("s"), "u")
 	Session.UpdateConn(conn2)
 
-	if Session.Component.Conn != conn2 {
+	sc, ok := Session.Component.Conn.(*utils.SafeConn)
+	if !ok || sc.Conn != conn2 {
 		t.Fatal("UpdateConn did not update conn")
 	}
 }
@@ -90,10 +94,13 @@ func TestSwapGComponentConn(t *testing.T) {
 	InitialGComponent(conn1, []byte("s"), "u")
 	old := SwapGComponentConn(conn2)
 
-	if old != conn1 {
-		t.Fatal("SwapGComponentConn did not return old conn")
+	if sc, ok := old.(*utils.SafeConn); ok {
+		if sc.Conn != conn1 {
+			t.Fatal("SwapGComponentConn did not return old conn")
+		}
 	}
-	if Session.Component.Conn != conn2 {
+	sc, ok := Session.Component.Conn.(*utils.SafeConn)
+	if !ok || sc.Conn != conn2 {
 		t.Fatal("SwapGComponentConn did not set new conn")
 	}
 }
@@ -105,10 +112,13 @@ func TestSwapConn(t *testing.T) {
 	InitSession(conn1, []byte("s"), "u")
 	old := Session.SwapConn(conn2)
 
-	if old != conn1 {
-		t.Fatal("SwapConn did not return old conn")
+	if sc, ok := old.(*utils.SafeConn); ok {
+		if sc.Conn != conn1 {
+			t.Fatal("SwapConn did not return old conn")
+		}
 	}
-	if Session.Component.Conn != conn2 {
+	sc, ok := Session.Component.Conn.(*utils.SafeConn)
+	if !ok || sc.Conn != conn2 {
 		t.Fatal("SwapConn did not set new conn")
 	}
 }

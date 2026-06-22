@@ -55,8 +55,8 @@ func TestNewServerTLSConfig_MinVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewServerTLSConfig() error: %v", err)
 	}
-	if cfg.MinVersion != tls.VersionTLS12 {
-		t.Fatalf("MinVersion = %d, want %d (TLS 1.2)", cfg.MinVersion, tls.VersionTLS12)
+	if cfg.MinVersion != tls.VersionTLS13 {
+		t.Fatalf("MinVersion = %d, want %d (TLS 1.3)", cfg.MinVersion, tls.VersionTLS13)
 	}
 }
 
@@ -157,8 +157,8 @@ func TestNewClientTLSConfig_MinVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if cfg.MinVersion != tls.VersionTLS12 {
-		t.Fatalf("MinVersion = %d, want %d (TLS 1.2)", cfg.MinVersion, tls.VersionTLS12)
+	if cfg.MinVersion != tls.VersionTLS13 {
+		t.Fatalf("MinVersion = %d, want %d (TLS 1.3)", cfg.MinVersion, tls.VersionTLS13)
 	}
 }
 

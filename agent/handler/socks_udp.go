@@ -30,7 +30,7 @@ func (addr *socksLocalAddr) byteArray() []byte {
 func udpAssociate(mgr *manager.Manager, setting *Setting, data []byte, seq uint64, length int) {
 	setting.isUDP = true
 
-	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	dataHeader := &protocol.Header{
 		Sender:      global.G_Component.UUID,
@@ -227,7 +227,7 @@ func proxyC2SUDP(mgr *manager.Manager, listener *net.UDPConn, seq uint64) {
 
 // proxyS2CUDP
 func proxyS2CUDP(mgr *manager.Manager, listener *net.UDPConn, seq uint64) {
-	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	header := &protocol.Header{
 		Sender:      global.G_Component.UUID,

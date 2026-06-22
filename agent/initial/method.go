@@ -58,8 +58,8 @@ func NormalActive(userOptions *Options, cryptoKey []byte, proxy share.Proxy, age
 	var sMessage, rMessage protocol.Message
 	// just say hi!
 	hiMess := &protocol.HIMess{
-		GreetingLen: uint16(len("Shhh...")),
-		Greeting:    "Shhh...",
+		GreetingLen: uint16(len(share.GreetHello())),
+		Greeting:    share.GreetHello(),
 		UUIDLen:     uint16(len(protocol.TEMP_UUID)),
 		UUID:        protocol.TEMP_UUID,
 		IsAdmin:     0,
@@ -128,7 +128,7 @@ func NormalActive(userOptions *Options, cryptoKey []byte, proxy share.Proxy, age
 
 		if fHeader.MessageType == protocol.HI {
 			mmess := fMessage.(*protocol.HIMess)
-			if mmess.Greeting == "Keep silent" && mmess.IsAdmin == 1 {
+			if mmess.Greeting == share.GreetAck() && mmess.IsAdmin == 1 {
 				uuid := achieveUUID(conn, cryptoKey, linkKey)
 				return conn, uuid, linkKey
 			}
@@ -157,8 +157,8 @@ func NormalPassive(userOptions *Options, cryptoKey []byte, agentID *identity.Age
 	var sMessage, rMessage protocol.Message
 
 	hiMess := &protocol.HIMess{
-		GreetingLen: uint16(len("Keep silent")),
-		Greeting:    "Keep silent",
+		GreetingLen: uint16(len(share.GreetAck())),
+		Greeting:    share.GreetAck(),
 		UUIDLen:     uint16(len(protocol.TEMP_UUID)),
 		UUID:        protocol.TEMP_UUID,
 		IsAdmin:     0,
@@ -213,7 +213,7 @@ func NormalPassive(userOptions *Options, cryptoKey []byte, agentID *identity.Age
 
 		if fHeader.MessageType == protocol.HI {
 			mmess := fMessage.(*protocol.HIMess)
-			if mmess.Greeting == "Shhh..." && mmess.IsAdmin == 1 {
+			if mmess.Greeting == share.GreetHello() && mmess.IsAdmin == 1 {
 				sMessage = protocol.NewUpMsg(conn, cryptoKey, linkKey, protocol.TEMP_UUID)
 				protocol.ConstructMessage(sMessage, header, hiMess, false)
 				sMessage.SendMessage()
@@ -262,8 +262,8 @@ func TorHiddenPassive(userOptions *Options, cryptoKey []byte, agentID *identity.
 	var sMessage, rMessage protocol.Message
 
 	hiMess := &protocol.HIMess{
-		GreetingLen: uint16(len("Keep silent")),
-		Greeting:    "Keep silent",
+		GreetingLen: uint16(len(share.GreetAck())),
+		Greeting:    share.GreetAck(),
 		UUIDLen:     uint16(len(protocol.TEMP_UUID)),
 		UUID:        protocol.TEMP_UUID,
 		IsAdmin:     0,
@@ -308,7 +308,7 @@ func TorHiddenPassive(userOptions *Options, cryptoKey []byte, agentID *identity.
 
 		if fHeader.MessageType == protocol.HI {
 			mmess := fMessage.(*protocol.HIMess)
-			if mmess.Greeting == "Shhh..." && mmess.IsAdmin == 1 {
+			if mmess.Greeting == share.GreetHello() && mmess.IsAdmin == 1 {
 				sMessage = protocol.NewUpMsg(conn, cryptoKey, linkKey, protocol.TEMP_UUID)
 				protocol.ConstructMessage(sMessage, header, hiMess, false)
 				sMessage.SendMessage()
@@ -334,7 +334,7 @@ func IPTableReusePassive(userOptions *Options, cryptoKey []byte, agentID *identi
 
 func waitForExit(localPort, reusedPort string) {
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM) //监听ctrl+c、kill命令
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	for {
 		<-sigs
 		DeletePortReuseRules(localPort, reusedPort)
@@ -400,8 +400,8 @@ func SoReusePassive(userOptions *Options, cryptoKey []byte, agentID *identity.Ag
 	var sMessage, rMessage protocol.Message
 
 	hiMess := &protocol.HIMess{
-		GreetingLen: uint16(len("Keep silent")),
-		Greeting:    "Keep silent",
+		GreetingLen: uint16(len(share.GreetAck())),
+		Greeting:    share.GreetAck(),
 		UUIDLen:     uint16(len(protocol.TEMP_UUID)),
 		UUID:        protocol.TEMP_UUID,
 		IsAdmin:     0,
@@ -455,7 +455,7 @@ func SoReusePassive(userOptions *Options, cryptoKey []byte, agentID *identity.Ag
 
 		if fHeader.MessageType == protocol.HI {
 			mmess := fMessage.(*protocol.HIMess)
-			if mmess.Greeting == "Shhh..." && mmess.IsAdmin == 1 {
+			if mmess.Greeting == share.GreetHello() && mmess.IsAdmin == 1 {
 				sMessage = protocol.NewUpMsg(conn, cryptoKey, linkKey, protocol.TEMP_UUID)
 				protocol.ConstructMessage(sMessage, header, hiMess, false)
 				sMessage.SendMessage()

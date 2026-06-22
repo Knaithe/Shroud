@@ -28,7 +28,7 @@ func newSocks() *Socks {
 }
 
 func (socks *Socks) start(mgr *manager.Manager) {
-	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	header := &protocol.Header{
 		Sender:      global.G_Component.UUID,
@@ -59,7 +59,7 @@ func (socks *Socks) start(mgr *manager.Manager) {
 func (socks *Socks) handleSocks(mgr *manager.Manager, dataChan chan []byte, seq uint64) {
 	setting := new(Setting)
 
-	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	defer func() { // no matter what happened, after the function return,tell admin that works done
 		finHeader := &protocol.Header{
@@ -118,7 +118,7 @@ func (socks *Socks) handleSocks(mgr *manager.Manager, dataChan chan []byte, seq 
 }
 
 func (socks *Socks) buildConn(mgr *manager.Manager, setting *Setting, data []byte, seq uint64) {
-	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	header := &protocol.Header{
 		Sender:      global.G_Component.UUID,

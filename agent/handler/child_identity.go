@@ -2,7 +2,9 @@ package handler
 
 import (
 	"errors"
+	"log"
 	"net"
+	"time"
 
 	"Shroud/agent/manager"
 	"Shroud/global"
@@ -26,11 +28,13 @@ func activeChildAuthWithRetry(dial negotiatedDial, mgr *manager.Manager) (net.Co
 	if err == nil {
 		return conn, linkKey, peerCert, "", nil
 	}
-	if len(share.AuthKey) == 0 {
+	if len(share.AuthKey) == 0 || !errors.Is(err, share.ErrPeerNoCert) {
 		conn.Close()
 		return nil, nil, identity.Certificate{}, "", err
 	}
 	conn.Close()
+
+	log.Printf("[*] WARNING: peer does not support cert auth, falling back to token enrollment: %v", err)
 
 	conn, err = dial()
 	if err != nil {
@@ -75,7 +79,7 @@ func soReusePassiveChildAuth(conn net.Conn, reusePort string, mgr *manager.Manag
 }
 
 func requestChildUUID(mgr *manager.Manager, childIP string, cert identity.Certificate, wantsEnrollment bool, edPub, xPub []byte) (*protocol.ChildUUIDRes, error) {
-	sUMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sUMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 	header := &protocol.Header{
 		Sender:      global.G_Component.UUID,
 		Accepter:    protocol.ADMIN_UUID,
@@ -97,7 +101,12 @@ func requestChildUUID(mgr *manager.Manager, childIP string, cert identity.Certif
 	}
 	protocol.ConstructMessage(sUMessage, header, req, false)
 	sUMessage.SendMessage()
-	res := <-mgr.ListenManager.ChildUUIDChan
+	var res *protocol.ChildUUIDRes
+	select {
+	case res = <-mgr.ListenManager.ChildUUIDChan:
+	case <-time.After(30 * time.Second):
+		return nil, errors.New("timeout waiting for admin child identity response")
+	}
 	if res == nil {
 		return nil, errors.New("admin returned empty child identity response")
 	}

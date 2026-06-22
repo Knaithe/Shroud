@@ -55,7 +55,7 @@ func (socks *Socks) LetSocks(ctx context.Context, mgr *manager.Manager, route st
 		return err
 	}
 
-	sMessage := protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sMessage := protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	header := &protocol.Header{
 		Sender:      protocol.ADMIN_UUID,
@@ -119,7 +119,7 @@ func (socks *Socks) handleSocksListener(ctx context.Context, mgr *manager.Manage
 }
 
 func (socks *Socks) handleSocks(mgr *manager.Manager, conn net.Conn, route string, uuid string, seq uint64) {
-	sMessage := protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sMessage := protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	header := &protocol.Header{
 		Sender:      protocol.ADMIN_UUID,
@@ -245,7 +245,7 @@ func startUDPAss(mgr *manager.Manager, topo *topology.Topology, seq uint64) {
 		OK:  0,
 	}
 
-	sMessage := protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sMessage := protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	defer func() {
 		if err != nil {
@@ -288,7 +288,7 @@ func startUDPAss(mgr *manager.Manager, topo *topology.Topology, seq uint64) {
 }
 
 func handleUDPAss(mgr *manager.Manager, listener *net.UDPConn, route string, uuid string, seq uint64) {
-	sMessage := protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.LinkKey, global.G_Component.UUID)
+	sMessage := protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
 	dataHeader := &protocol.Header{
 		Sender:      protocol.ADMIN_UUID,

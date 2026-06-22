@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 
@@ -31,7 +32,7 @@ const (
 	UsageNode          = "node-auth"
 	UsageCommandSigner = "command-sign"
 
-	certTTL           = 365 * 24 * time.Hour
+	certTTL           = 30 * 24 * time.Hour
 	commandTTL        = 5 * time.Minute
 	e2eInfoPrefix     = "shroud-e2e-v1"
 	certSignDomain    = "shroud-cert-v1"
@@ -161,6 +162,11 @@ type SignedPayload struct {
 
 var storageSecret []byte
 var storePassphrase []byte
+var allowPlaintextIdentity bool
+var filelessMode bool
+
+func SetAllowPlaintextIdentity(allow bool) { allowPlaintextIdentity = allow }
+func SetFilelessMode(enabled bool)         { filelessMode = enabled }
 
 func SetStorePassphrase(passphrase []byte) {
 	storePassphrase = append([]byte(nil), passphrase...)
@@ -234,6 +240,14 @@ func LoadOrCreateAdmin(path string) (*AdminStore, error) {
 }
 
 func LoadOrCreateAgent(path string) (*AgentStore, error) {
+	if filelessMode {
+		st := &AgentStore{}
+		st.initMaps()
+		if err := st.ensureAgentMaterial(); err != nil {
+			return nil, err
+		}
+		return st, nil
+	}
 	if path == "" {
 		path = DefaultAgentPath()
 	}
@@ -375,6 +389,7 @@ func wipeBytes(slices ...[]byte) {
 		for i := range b {
 			b[i] = 0
 		}
+		runtime.KeepAlive(b)
 	}
 }
 
@@ -406,8 +421,25 @@ func writeJSONFile(path string, v any) error {
 		if err != nil {
 			return fmt.Errorf("encrypt identity: %w", err)
 		}
+	} else if !allowPlaintextIdentity {
+		return fmt.Errorf("passphrase required for identity storage (use --passphrase or --identity-plain to override)")
 	}
-	return os.WriteFile(path, data, 0600)
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0600); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, path)
+}
+
+func (s *AdminStore) RevokeCert(uuid string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	serial, ok := s.ProtocolUUIDToSerial[uuid]
+	if !ok {
+		return fmt.Errorf("no certificate found for UUID %s", uuid)
+	}
+	s.RevokedSerials[serial] = time.Now().Unix()
+	return nil
 }
 
 func (s *AdminStore) NodePrivateKey() ed25519.PrivateKey { return ed25519.NewKeyFromSeed(s.NodeSeed) }
@@ -465,7 +497,7 @@ func (s *AdminStore) EnrollAgent(authKey, edPub, xPub []byte) (EnrollmentRespons
 		return EnrollmentResponse{}, errors.New("invalid X25519 public key")
 	}
 	keyID := EnrollmentKeyID(authKey)
-	if _, used := s.ConsumedEnrollmentKeys[keyID]; used && os.Getenv("SHROUD_ALLOW_ENROLL_TOKEN_REUSE") == "" {
+	if _, used := s.ConsumedEnrollmentKeys[keyID]; used {
 		return EnrollmentResponse{}, errors.New("enrollment token already consumed")
 	}
 	caPriv := ed25519.NewKeyFromSeed(s.CASeed)
@@ -790,8 +822,7 @@ func randomSerial() string {
 func randomBytes(n int) []byte {
 	b := make([]byte, n)
 	if _, err := io.ReadFull(rand.Reader, b); err != nil {
-		h := sha256.Sum256([]byte(fmt.Sprintf("%d", time.Now().UnixNano())))
-		return h[:n]
+		panic("crypto/rand unavailable: " + err.Error())
 	}
 	return b
 }

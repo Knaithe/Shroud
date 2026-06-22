@@ -32,7 +32,7 @@ func genNonce(nonceSize int) ([]byte, error) {
 
 func AESDecrypt(cryptedData, key []byte) ([]byte, error) {
 	if key == nil {
-		return cryptedData, nil
+		return nil, errors.New("AESDecrypt: nil key rejected")
 	}
 
 	block, err := aes.NewCipher(key)
@@ -57,7 +57,7 @@ func AESDecrypt(cryptedData, key []byte) ([]byte, error) {
 
 func AESEncrypt(origData, key []byte) ([]byte, error) {
 	if key == nil {
-		return origData, nil
+		return nil, errors.New("AESEncrypt: nil key rejected")
 	}
 
 	block, err := aes.NewCipher(key)

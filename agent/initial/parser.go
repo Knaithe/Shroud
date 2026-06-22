@@ -57,6 +57,7 @@ type Options struct {
 	Verbose        bool
 	IdentityDir    string
 	Passphrase     string
+	IdentityPlain  bool
 	PadSize        int
 	UserAgent      string
 	FrontDomain    string
@@ -65,6 +66,7 @@ type Options struct {
 	WorkHours      string
 	SelfDelete     bool
 	SleepMask      bool
+	Fileless       bool
 }
 
 var args *Options
@@ -98,6 +100,7 @@ func init() {
 	flag.BoolVar(&args.Verbose, "v", false, "")
 	flag.StringVar(&args.IdentityDir, "identity-dir", "", "")
 	flag.StringVar(&args.Passphrase, "passphrase", "", "")
+	flag.BoolVar(&args.IdentityPlain, "identity-plain", false, "")
 	flag.IntVar(&args.PadSize, "pad-size", 0, "")
 	flag.StringVar(&args.UserAgent, "user-agent", "", "")
 	flag.StringVar(&args.FrontDomain, "front-domain", "", "")
@@ -106,6 +109,7 @@ func init() {
 	flag.StringVar(&args.WorkHours, "work-hours", "", "")
 	flag.BoolVar(&args.SelfDelete, "self-delete", false, "")
 	flag.BoolVar(&args.SleepMask, "sleep-mask", false, "")
+	flag.BoolVar(&args.Fileless, "fileless", false, "")
 
 	flag.Usage = func() {}
 }
@@ -129,6 +133,20 @@ func ParseOptions() *Options {
 	flag.Parse()
 	args.Secret = resolveSecret()
 	scrubSecretArgs()
+
+	// Resolve sensitive credentials from environment variables
+	if args.Socks5ProxyP == "" {
+		if p := os.Getenv("SHROUD_SOCKS5_PROXY_PASS"); p != "" {
+			args.Socks5ProxyP = p
+			os.Unsetenv("SHROUD_SOCKS5_PROXY_PASS")
+		}
+	}
+	if args.TorControlPW == "" {
+		if p := os.Getenv("SHROUD_TOR_CONTROL_PASS"); p != "" {
+			args.TorControlPW = p
+			os.Unsetenv("SHROUD_TOR_CONTROL_PASS")
+		}
+	}
 
 	if args.Listen != "" && args.Connect == "" && args.Reconnect == 0 && args.ReuseHost == "" && args.ReusePort == "" && args.Socks5Proxy == "" && args.HttpProxy == "" && args.TorProxy == "" && !args.TorHidden {
 		args.Mode = NORMAL_PASSIVE
@@ -205,6 +223,22 @@ func scrubSecretArgs() {
 		}
 		if strings.HasPrefix(os.Args[i], "--passphrase=") {
 			os.Args[i] = "--passphrase=" + strings.Repeat("x", len(strings.TrimPrefix(os.Args[i], "--passphrase=")))
+		}
+		if os.Args[i] == "--socks5-proxyp" && i+1 < len(os.Args) {
+			os.Args[i+1] = strings.Repeat("x", len(os.Args[i+1]))
+			i++
+			continue
+		}
+		if strings.HasPrefix(os.Args[i], "--socks5-proxyp=") {
+			os.Args[i] = "--socks5-proxyp=" + strings.Repeat("x", len(strings.TrimPrefix(os.Args[i], "--socks5-proxyp=")))
+		}
+		if os.Args[i] == "--tor-control-password" && i+1 < len(os.Args) {
+			os.Args[i+1] = strings.Repeat("x", len(os.Args[i+1]))
+			i++
+			continue
+		}
+		if strings.HasPrefix(os.Args[i], "--tor-control-password=") {
+			os.Args[i] = "--tor-control-password=" + strings.Repeat("x", len(strings.TrimPrefix(os.Args[i], "--tor-control-password=")))
 		}
 	}
 }

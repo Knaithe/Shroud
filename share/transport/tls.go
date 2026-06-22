@@ -38,15 +38,42 @@ func newRandomTLSKeyPair() (*tls.Certificate, error) {
 	return &tlsCert, nil
 }
 
+var tlsCertPath string
+
+func SetTLSCertPath(path string) { tlsCertPath = path }
+
+func loadOrCreateTLSKeyPair() (*tls.Certificate, error) {
+	if tlsCertPath != "" {
+		certFile := tlsCertPath + ".crt"
+		keyFile := tlsCertPath + ".key"
+		if _, err := os.Stat(certFile); err == nil {
+			cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+			if err == nil {
+				return &cert, nil
+			}
+		}
+		cert, err := newRandomTLSKeyPair()
+		if err != nil {
+			return nil, err
+		}
+		keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(cert.PrivateKey.(*rsa.PrivateKey))})
+		certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Certificate[0]})
+		_ = os.WriteFile(certFile, certPEM, 0600)
+		_ = os.WriteFile(keyFile, keyPEM, 0600)
+		return cert, nil
+	}
+	return newRandomTLSKeyPair()
+}
+
 func NewServerTLSConfig() (*tls.Config, error) {
-	cert, err := newRandomTLSKeyPair()
+	cert, err := loadOrCreateTLSKeyPair()
 	if err != nil {
 		return nil, err
 	}
 
 	base := &tls.Config{
 		Certificates: []tls.Certificate{*cert},
-		MinVersion:   tls.VersionTLS12,
+		MinVersion:   tls.VersionTLS13,
 	}
 	fmt.Fprintf(os.Stderr, "[*] TLS certificate fingerprint (SHA256): %s\n", certFingerprint(cert))
 	return base, nil
@@ -65,7 +92,7 @@ func NewClientTLSConfig(serverName string, expectedFingerprint string, insecure 
 	base := &tls.Config{
 		InsecureSkipVerify: true,
 		ServerName:         serverName,
-		MinVersion:         tls.VersionTLS12,
+		MinVersion:         tls.VersionTLS13,
 		VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
 			if len(rawCerts) == 0 {
 				return fmt.Errorf("no server certificate")
