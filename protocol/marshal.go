@@ -1002,12 +1002,28 @@ func (m *Shutdown) UnmarshalBinary(data []byte) error {
 func (m *HeartbeatMsg) MarshalBinary() []byte {
 	var w binWriter
 	w.putU16(m.Ping)
+	w.putU64(m.Seq)
 	return w.Bytes()
 }
 
 func (m *HeartbeatMsg) UnmarshalBinary(data []byte) error {
 	r := binReader{data: data}
 	m.Ping = r.u16()
+	m.Seq = r.u64()
+	return r.err
+}
+
+// HeartbeatAckMsg
+
+func (m *HeartbeatAckMsg) MarshalBinary() []byte {
+	var w binWriter
+	w.putU64(m.Seq)
+	return w.Bytes()
+}
+
+func (m *HeartbeatAckMsg) UnmarshalBinary(data []byte) error {
+	r := binReader{data: data}
+	m.Seq = r.u64()
 	return r.err
 }
 

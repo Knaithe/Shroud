@@ -2,6 +2,7 @@ package global
 
 import (
 	"net"
+	"os"
 	"sync"
 
 	"Shroud/identity"
@@ -115,7 +116,8 @@ func GetTransportMode() string {
 
 // AdminCleanExit is set by admin/admin.go after globals are initialized.
 // It wipes cryptographic seeds and keys, closes the connection, then exits.
-var AdminCleanExit func()
+// Default no-op prevents nil pointer crash if triggered before admin startup completes.
+var AdminCleanExit = func() { os.Exit(1) }
 
 // Consolidated globals — previously scattered individual vars.
 

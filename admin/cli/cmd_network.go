@@ -27,11 +27,39 @@ func (console *Console) cmdConnect(fCommand []string, uuidNum int, uuid string, 
 }
 
 func (console *Console) cmdListen(fCommand []string, uuidNum int, uuid string, route string) {
-	if console.expectParams(fCommand, 1, NODE, 0) {
+	listen := handler.NewListen()
+
+	if len(fCommand) >= 3 {
+		listen.Method = handler.NORMAL
+		listen.Addr = fCommand[2]
+		if fCommand[1] == "1" {
+			listen.Method = handler.NORMAL
+		} else if fCommand[1] == "2" {
+			listen.Method = handler.IPTABLES
+		} else if fCommand[1] == "3" {
+			listen.Method = handler.SOREUSE
+		} else if fCommand[1] == "4" {
+			listen.Method = handler.TORHIDDEN
+		} else {
+			printer.Fail("\r\n[*] Usage: listen <1-4> [ip:port]")
+			console.status = fmt.Sprintf("(node %d) >> ", uuidNum)
+			console.ready <- true
+			return
+		}
+
+		printer.Warning("\r\n[*] Waiting for response......")
+		err := listen.LetListen(console.mgr, route, uuid)
+		if err != nil {
+			printer.Fail("[*] Error: %s\n", err.Error())
+		}
+		console.status = fmt.Sprintf("(node %d) >> ", uuidNum)
+		console.ready <- true
 		return
 	}
 
-	listen := handler.NewListen()
+	if console.expectParams(fCommand, 1, NODE, 0) {
+		return
+	}
 
 	printer.Warning("\r\n[*] BE AWARE! If you choose IPTables Reuse or SOReuse, you MUST CONFIRM that the node you're controlling was started in the corresponding way!")
 	printer.Warning("\r\n[*] When you choose IPTables Reuse or SOReuse, the node will use the initial config(when node started) to reuse port!")

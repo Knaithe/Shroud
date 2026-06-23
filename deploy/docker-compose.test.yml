@@ -1,0 +1,130 @@
+services:
+  admin:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: shroud-admin
+    entrypoint: ["/opt/shroud/test/entrypoint-admin.sh"]
+    command:
+      - "-l"
+      - "0.0.0.0:9999"
+      - "-s"
+      - "${SHROUD_SECRET}"
+      - "--heartbeat"
+      - "--down"
+      - "ws"
+      - "--tls-enable"
+      - "--tls-insecure"
+      - "--identity-plain"
+      - "--pad-size"
+      - "4096"
+      - "--identity-dir"
+      - "/data"
+    volumes:
+      - admin-data:/data
+    networks:
+      shroud-net:
+        ipv4_address: 10.99.0.10
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/ready && pgrep -f admin"]
+      interval: 3s
+      timeout: 2s
+      retries: 30
+      start_period: 5s
+
+  agent-0:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: shroud-agent-0
+    entrypoint: ["/opt/shroud/test/entrypoint-agent-wait.sh"]
+    command:
+      - "10.99.0.10"
+      - "9999"
+      - "-c"
+      - "10.99.0.10:9999"
+      - "-s"
+      - "${SHROUD_SECRET}"
+      - "--up"
+      - "ws"
+      - "--tls-enable"
+      - "--tls-insecure"
+      - "--reconnect"
+      - "5"
+      - "--sleep-mask"
+      - "--identity-plain"
+      - "--pad-size"
+      - "4096"
+      - "--identity-dir"
+      - "/data"
+      - "-v"
+    volumes:
+      - agent0-data:/data
+    depends_on:
+      admin:
+        condition: service_healthy
+    networks:
+      shroud-net:
+        ipv4_address: 10.99.0.20
+
+  agent-1:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: shroud-agent-1
+    entrypoint: ["/opt/shroud/test/entrypoint-agent-wait.sh"]
+    command:
+      - "10.99.0.20"
+      - "10000"
+      - "-c"
+      - "10.99.0.20:10000"
+      - "-s"
+      - "${SHROUD_SECRET}"
+      - "--up"
+      - "ws"
+      - "--tls-enable"
+      - "--tls-insecure"
+      - "--fileless"
+      - "--pad-size"
+      - "4096"
+      - "--kill-date"
+      - "2099-12-31"
+      - "--work-hours"
+      - "00:00-23:59"
+      - "-v"
+    depends_on:
+      admin:
+        condition: service_healthy
+    networks:
+      shroud-net:
+        ipv4_address: 10.99.0.30
+    profiles: ["multihop"]
+
+  target:
+    image: nginx:alpine
+    container_name: shroud-target
+    networks:
+      shroud-net:
+        ipv4_address: 10.99.0.100
+
+  netclient:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: shroud-netclient
+    entrypoint: ["sleep", "infinity"]
+    networks:
+      shroud-net:
+        ipv4_address: 10.99.0.200
+    profiles: ["test"]
+
+volumes:
+  admin-data:
+  agent0-data:
+
+networks:
+  shroud-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.99.0.0/24

@@ -1,3 +1,6 @@
 release/
 .vscode/
 .DS_Store
+*.exe
+__pycache__/
+.env

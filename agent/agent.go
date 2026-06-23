@@ -59,6 +59,8 @@ func main() {
 	}
 	if agentID.AdminUUID != "" {
 		protocol.SetAdminUUID(agentID.AdminUUID)
+	} else if len(options.Secret) > 0 {
+		protocol.SetAdminUUID(utils.DeriveUUID(options.Secret, "admin-uuid"))
 	}
 	if len(share.AuthKey) > 0 {
 		protocol.SetTempUUID(utils.DeriveUUID(share.AuthKey, "temp-uuid"))

@@ -1,0 +1,11 @@
+.git
+.claude
+deploy/__pycache__
+*.exe
+*.dll
+*.i64
+*.id0
+*.id1
+*.id2
+*.nam
+*.til

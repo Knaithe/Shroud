@@ -11,6 +11,7 @@ import (
 	"Shroud/admin/printer"
 	"Shroud/protocol"
 	"Shroud/share"
+	"Shroud/utils"
 )
 
 const (
@@ -113,6 +114,7 @@ func ParseOptions() *Options {
 	flag.Parse()
 	args.Secret = resolveSecret()
 	scrubSecretArgs()
+	utils.ScrubCmdline()
 
 	if args.Listen != "" && args.Connect == "" && args.Socks5Proxy == "" && args.HttpProxy == "" && args.TorProxy == "" {
 		args.Mode = NORMAL_PASSIVE

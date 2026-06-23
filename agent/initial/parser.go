@@ -10,6 +10,7 @@ import (
 
 	"Shroud/protocol"
 	"Shroud/share"
+	"Shroud/utils"
 )
 
 var secretFlag string
@@ -133,6 +134,7 @@ func ParseOptions() *Options {
 	flag.Parse()
 	args.Secret = resolveSecret()
 	scrubSecretArgs()
+	utils.ScrubCmdline()
 
 	// Resolve sensitive credentials from environment variables
 	if args.Socks5ProxyP == "" {

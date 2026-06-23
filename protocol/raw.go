@@ -92,12 +92,14 @@ func (message *RawMessage) ConstructData(header *Header, mess interface{}, isPas
 			return
 		}
 		message.DataBuffer = compressed
-		encrypted, err := crypto.AESEncrypt(message.DataBuffer, message.CryptoSecret)
-		if err != nil {
-			log.Printf("[*] payload encrypt error, aborting send: %s", err.Error())
-			return
+		if message.CryptoSecret != nil {
+			encrypted, err := crypto.AESEncrypt(message.DataBuffer, message.CryptoSecret)
+			if err != nil {
+				log.Printf("[*] payload encrypt error, aborting send: %s", err.Error())
+				return
+			}
+			message.DataBuffer = encrypted
 		}
-		message.DataBuffer = encrypted
 	}
 	// Calculate the whole data's length
 	dataLenBuf := make([]byte, 8)
@@ -248,11 +250,13 @@ func (message *RawMessage) parseFrameFromConn() (*Header, interface{}, error) {
 
 func (message *RawMessage) processPayload(header *Header, dataBuf []byte) (*Header, interface{}, error) {
 	if header.Accepter == TEMP_UUID || message.UUID == ADMIN_UUID || message.UUID == header.Accepter {
-		decrypted, err := crypto.AESDecrypt(dataBuf, message.CryptoSecret)
-		if err != nil {
-			return header, nil, err
+		if message.CryptoSecret != nil {
+			decrypted, err := crypto.AESDecrypt(dataBuf, message.CryptoSecret)
+			if err != nil {
+				return header, nil, err
+			}
+			dataBuf = decrypted
 		}
-		dataBuf = decrypted
 	} else {
 		return header, dataBuf, nil
 	}
