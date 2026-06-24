@@ -25,3 +25,8 @@ type Terminal interface {
 	PollEvent() KeyEvent
 	Interrupt()
 }
+
+type LineTerminal interface {
+	Terminal
+	ReadLine() (string, error)
+}

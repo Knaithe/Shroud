@@ -5,8 +5,10 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/signal"
 	"runtime"
 	"strings"
+	"syscall"
 
 	"Shroud/agent/initial"
 	"Shroud/agent/process"
@@ -164,6 +166,13 @@ func main() {
 	protocol.SetSecurityContext(func(peer string) []byte { return agentID.PayloadKeyForAdmin() }, nil, agentID)
 
 	process.SelfDeleteOnExit = options.SelfDelete
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		process.CleanShutdown()
+	}()
 
 	if options.KillDate != "" || options.WorkHours != "" {
 		killDate, _ := process.ParseKillDate(options.KillDate)

@@ -11,6 +11,8 @@ import (
 
 var SelfDeleteOnExit bool
 
+func CleanShutdown() { cleanShutdown() }
+
 func cleanShutdown() {
 	if global.Session != nil {
 		if global.Session.AgentIdentity != nil {

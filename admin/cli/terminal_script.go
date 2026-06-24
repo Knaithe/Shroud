@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"io"
 	"os"
+	"strings"
 )
 
 type scriptTerminal struct {
@@ -17,6 +18,14 @@ func NewScriptTerminal() Terminal {
 func (t *scriptTerminal) Init() error { return nil }
 func (t *scriptTerminal) Close()      {}
 func (t *scriptTerminal) Interrupt()   {}
+
+func (t *scriptTerminal) ReadLine() (string, error) {
+	line, err := t.reader.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimRight(line, "\r\n"), nil
+}
 
 func (t *scriptTerminal) PollEvent() KeyEvent {
 	ch, _, err := t.reader.ReadRune()

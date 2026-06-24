@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"strings"
 
 	"Shroud/admin/manager"
@@ -56,6 +57,33 @@ func (console *Console) Run() {
 }
 
 func (console *Console) start() {
+	if lt, ok := console.term.(LineTerminal); ok {
+		console.startLineMode(lt)
+		return
+	}
+	console.startCharMode()
+}
+
+func (console *Console) startLineMode(lt LineTerminal) {
+	for {
+		line, err := lt.ReadLine()
+		if err != nil {
+			if err == io.EOF {
+				global.AdminCleanExit()
+				return
+			}
+			continue
+		}
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		console.getCommand <- line
+		<-console.ready
+	}
+}
+
+func (console *Console) startCharMode() {
 	var (
 		isGoingOn    bool
 		leftCommand  string
