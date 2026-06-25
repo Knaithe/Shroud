@@ -218,7 +218,8 @@ Shroud是一个利用go语言编写、专为渗透测试工作者制作的多级
 
 - 逐跳路由(自动)：Admin向每个Agent下发路由表(`目标→下一跳`)，中间节点仅知直连邻居，无法获取全网拓扑
 - 动态UUID(自动)：Admin/Agent的UUID从密钥SHA256派生，二进制文件内无硬编码标识
-- 身份路径隐藏(自动，`--identity-dir`可覆盖)：存储目录从密钥SHA256派生(非固定`.shroud/`)，已有部署自动兼容
+- 身份路径隐藏(自动，`--identity-dir`可覆盖)：存储目录从密钥SHA256派生(非固定`.shroud/`)，已有部署自动兼容，目录内写入`.shroud-id`标识文件便于人工识别
+- TCP保活(自动)：所有控制连接启用TCP keepalive(30秒探测)，防止NAT/防火墙静默断连
 - iptables链名隐藏(自动)：端口复用时链名从密钥SHA256派生前缀`CT`+6位hex(非固定字符串)
 - 静默运行(`-v`开启日志)：Agent默认不输出任何日志，不泄露连接/节点信息
 - 命令行擦除(自动)：`-s`和`--passphrase`参数启动后从进程参数列表中清除，`/proc/cmdline`不可见
@@ -296,7 +297,7 @@ Shroud一共包含两种角色，分别是：
 --tls-enable 为节点通信启用TLS
 --tls-fingerprint 预期的TLS证书SHA256指纹，用于证书锁定
 --domain 指定TLS SNI/WebSocket域名，若为空，默认为目标节点地址
---heartbeat 开启心跳包
+--heartbeat 心跳保活(默认开启，--heartbeat=false可关闭)
 --tor-proxy Tor SOCKS5代理地址，如 127.0.0.1:9050
 --passphrase 身份文件加密口令(可选，也可通过SHROUD_PASSPHRASE环境变量设置)
 --identity-dir 身份文件存储目录(可选，默认从密钥派生)
