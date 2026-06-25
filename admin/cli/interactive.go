@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"Shroud/admin/manager"
 	"Shroud/admin/printer"
@@ -65,6 +66,12 @@ func (console *Console) start() {
 }
 
 func (console *Console) startLineMode(lt LineTerminal) {
+	select {
+	case <-console.topology.NodeReady:
+	case <-time.After(30 * time.Second):
+		printer.Warning("[*] Timeout waiting for first node, proceeding anyway\r\n")
+	}
+
 	for {
 		line, err := lt.ReadLine()
 		if err != nil {

@@ -68,6 +68,7 @@ type Options struct {
 	SelfDelete     bool
 	SleepMask      bool
 	Fileless       bool
+	ForceReenroll  bool
 }
 
 var args *Options
@@ -111,6 +112,7 @@ func init() {
 	flag.BoolVar(&args.SelfDelete, "self-delete", false, "")
 	flag.BoolVar(&args.SleepMask, "sleep-mask", false, "")
 	flag.BoolVar(&args.Fileless, "fileless", false, "")
+	flag.BoolVar(&args.ForceReenroll, "force-reenroll", false, "")
 
 	flag.Usage = func() {}
 }

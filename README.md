@@ -557,6 +557,7 @@ Operator          DMZ             Office           Core
 (admin) >> use 0
 (node 0) >> listen
 # 选择 1.Normal Passive，输入端口 10000
+# 或直接: listen 1 0.0.0.0:10000
 
 # 4. 办公网启动 Agent-1，连接 Agent-0
 ./shroud_agent -c <agent0_ip>:10000 -s mysecret
@@ -565,6 +566,7 @@ Operator          DMZ             Office           Core
 (admin) >> use 1
 (node 1) >> listen
 # 选择 1.Normal Passive，输入端口 10001
+# 或直接: listen 1 0.0.0.0:10001
 
 # 6. 核心区启动 Agent-2，连接 Agent-1
 ./shroud_agent -c <agent1_ip>:10001 -s mysecret
@@ -743,7 +745,21 @@ python reuse.py --start --rhost <agent_ip> --rport 22
 
 ### 场景十：systemd服务化部署（推荐）
 
-Admin以`--daemon`模式运行，由systemd托管，断线自动重连，SIGTERM优雅退出。**生产环境推荐此方式部署Admin**。
+**方式一：一键部署脚本（推荐）**
+
+项目自带 `deploy-admin.sh` 和 `deploy-agent.sh`，一条命令完成安装、环境文件生成、systemd 注册和启动：
+
+```bash
+# Admin 端
+./deploy-admin.sh --user --listen 0.0.0.0:9999
+
+# Agent 端
+./deploy-agent.sh --user --connect <admin_ip>:9999 --secret <secret>
+```
+
+脚本自动生成随机密钥、创建 systemd user 服务、启用 `loginctl enable-linger` 保活。支持 `--self-delete`、`--fileless`、`--sleep-mask`、`--kill-date` 等全部 Agent 参数透传。需要 root 部署时改为 `--system` 即可。
+
+**方式二：手动部署**
 
 ```
 Operator VPS                          
@@ -1011,12 +1027,10 @@ AI Agent或部署脚本按以下顺序执行：
 # 启动admin后自动在node 0上开启SOCKS5代理
 echo -e "use 0\nsocks 7777" | ./shroud_admin -l 9999 -s <secret> --script
 
-# 或从脚本文件读取
+# 或从脚本文件读取（注意 --script 模式支持 listen 1 <port> 单行语法）
 cat <<'EOF' > commands.txt
 use 0
-listen
-1
-10000
+listen 1 0.0.0.0:10000
 EOF
 ./shroud_admin -l 9999 -s <secret> --script < commands.txt
 ```
@@ -1481,6 +1495,60 @@ $
 [*] Do you really want to exit shroud?(y/n): y
 [*] BYE!
 ```
+
+## 节点销毁
+
+### 临时下线（可重连）
+
+Agent 服务器上停止服务，保留所有配置和身份文件：
+
+```bash
+systemctl --user stop shroud-agent
+# 或 systemctl --user disable --now shroud-agent  # 同时禁止自启
+```
+
+### Admin 远程终止
+
+在 Admin 控制台中选择节点并下发 `shutdown` 命令，Agent 会擦除密钥后退出：
+
+```
+(admin) >> use 0
+(node 0) >> shutdown
+```
+
+如果 Agent 启动时设置了 `--self-delete`，退出时还会覆写并删除自身二进制。
+
+### 吊销证书（阻止重连）
+
+仅吊销证书、断开连接，Agent 进程和文件保留，但无法再次连接（需重新注册）：
+
+```
+(admin) >> use 0
+(node 0) >> revoke
+```
+
+被吊销后 Admin 的 `admin_identity.json` 中 `revoked_serials` 会记录该证书序列号，Agent 再次连接时证书验证失败。
+
+### 彻底清除（连根拔）
+
+Agent 服务器上执行，完全移除所有痕迹：
+
+```bash
+# systemd 服务中部署
+systemctl --user disable --now shroud-agent
+rm -f ~/.config/systemd/user/shroud-agent.service
+systemctl --user daemon-reload
+rm -f ~/.config/shroud/agent.env
+rm -f ~/.local/bin/shroud_agent
+rm -rf ~/.local/share/shroud/
+
+# 手动启动的进程
+kill $(pgrep shroud_agent) 2>/dev/null
+rm -f /tmp/shroud_agent
+rm -rf /tmp/sg*     # --identity-dir 指定的目录
+```
+
+> **注意：** `--self-delete` 和 `--fileless` 模式下，Agent 退出时已自动清除部分文件。但 systemd unit 和环境变量文件仍需手动清理。
 
 ## 注意事项
 

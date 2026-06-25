@@ -2,6 +2,8 @@ package process
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"encoding/json"
 	"log"
 	"net"
@@ -89,6 +91,8 @@ func (agent *Agent) Run() {
 	go agent.waitingChild()
 	// heartbeat watchdog
 	go agent.heartbeatWatchdog()
+	// agent-initiated heartbeat
+	go agent.agentHeartbeat()
 	// process data from upstream
 	agent.handleDataFromUpstream()
 	//agent.handleDataFromDownstream()
@@ -426,5 +430,28 @@ func (agent *Agent) heartbeatWatchdog() {
 		if time.Now().Unix()-last > 90 {
 			cleanShutdown()
 		}
+	}
+}
+
+func (agent *Agent) agentHeartbeat() {
+	var seq uint64
+	for {
+		var buf [8]byte
+		rand.Read(buf[:])
+		jitter := time.Duration(binary.BigEndian.Uint64(buf[:])%10000) * time.Millisecond
+		time.Sleep(30*time.Second + jitter)
+
+		seq++
+		sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
+		header := &protocol.Header{
+			Sender:      agent.UUID,
+			Accepter:    protocol.ADMIN_UUID,
+			MessageType: protocol.HEARTBEAT,
+			RouteLen:    0,
+			Route:       "",
+		}
+		hbMess := &protocol.HeartbeatMsg{Ping: 1, Seq: seq}
+		protocol.ConstructMessage(sMessage, header, hbMess, false)
+		sMessage.SendMessage()
 	}
 }

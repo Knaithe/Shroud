@@ -55,10 +55,20 @@ func main() {
 	if options.IdentityDir != "" {
 		agentIDPath = options.IdentityDir + string(os.PathSeparator) + "agent_identity.json"
 	}
+	if options.ForceReenroll {
+		identity.ClearAgentIdentity(agentIDPath)
+		log.Printf("[*] Force re-enroll: cleared existing identity")
+	}
 	agentID, err := identity.LoadOrCreateAgent(agentIDPath)
 	if err != nil {
 		log.Fatalf("Failed to initialize agent identity: %v", err)
 	}
+	enrolled := false
+	defer func() {
+		if !enrolled && !agentID.HasCertificate() {
+			identity.ClearAgentIdentity(agentIDPath)
+		}
+	}()
 	if agentID.AdminUUID != "" {
 		protocol.SetAdminUUID(agentID.AdminUUID)
 	} else if len(options.Secret) > 0 {
@@ -154,6 +164,7 @@ func main() {
 		options.Secret[i] = 0
 	}
 	share.ClearPreAuthToken()
+	enrolled = true
 
 	global.InitialGComponent(conn, cryptoKey, agent.UUID)
 	global.Session.SetLinkKey(linkKey)

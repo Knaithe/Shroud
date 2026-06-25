@@ -36,6 +36,7 @@ type Topology struct {
 
 	TaskChan   chan *TopoTask
 	ResultChan chan *topoResult
+	NodeReady  chan struct{}
 }
 
 type node struct {
@@ -78,6 +79,7 @@ func NewTopology() *Topology {
 	topology.currentIDNum = 0
 	topology.TaskChan = make(chan *TopoTask)
 	topology.ResultChan = make(chan *topoResult)
+	topology.NodeReady = make(chan struct{}, 1)
 	return topology
 }
 
@@ -167,6 +169,11 @@ func (topology *Topology) addNode(task *TopoTask) {
 	topology.nodes[topology.currentIDNum] = task.Target
 
 	topology.history[task.Target.uuid] = topology.currentIDNum
+
+	select {
+	case topology.NodeReady <- struct{}{}:
+	default:
+	}
 
 	topology.ResultChan <- &topoResult{IDNum: topology.currentIDNum}
 

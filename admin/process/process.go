@@ -166,6 +166,8 @@ func (admin *Admin) handleMessFromDownstream(term cli.Terminal) {
 			admin.mgr.ChildrenManager.ChildrenMessChan <- message
 		case protocol.TRANSPORTSWITCHRES:
 			admin.mgr.TransportManager.TransportMessChan <- message
+		case protocol.HEARTBEAT:
+			// agent-initiated keepalive; no action needed
 		case protocol.HEARTBEATACK:
 			handler.HandleHeartbeatAck()
 		default:

@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -177,8 +178,15 @@ func readFileData(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(storePassphrase) > 0 && len(data) > 0 && data[0] == 1 {
-		return scrypto.DecryptStore(data, storePassphrase)
+	if len(data) > 0 && data[0] == 1 {
+		if len(storePassphrase) == 0 {
+			return nil, fmt.Errorf("identity file is encrypted; provide --passphrase or set SHROUD_PASSPHRASE")
+		}
+		plain, err := scrypto.DecryptStore(data, storePassphrase)
+		if err != nil {
+			return nil, fmt.Errorf("wrong passphrase or corrupted identity file: %w", err)
+		}
+		return plain, nil
 	}
 	return data, nil
 }
@@ -405,6 +413,13 @@ func (s *AgentStore) WipeSeeds() {
 	wipeBytes(s.NodeSeed, s.NodeX25519Priv)
 }
 
+func ClearAgentIdentity(path string) {
+	if path == "" {
+		path = DefaultAgentPath()
+	}
+	os.Remove(path)
+}
+
 func writeJSONFile(path string, v any) error {
 	if path == "" {
 		return nil
@@ -428,7 +443,12 @@ func writeJSONFile(path string, v any) error {
 	if err := os.WriteFile(tmpPath, data, 0600); err != nil {
 		return err
 	}
-	return os.Rename(tmpPath, path)
+	if err := os.Rename(tmpPath, path); err != nil {
+		return err
+	}
+	marker := filepath.Join(filepath.Dir(path), ".shroud-id")
+	_ = os.WriteFile(marker, []byte("Shroud identity store"), 0600)
+	return nil
 }
 
 func (s *AdminStore) RevokeCert(uuid string) error {
@@ -497,7 +517,7 @@ func (s *AdminStore) EnrollAgent(authKey, edPub, xPub []byte) (EnrollmentRespons
 		return EnrollmentResponse{}, errors.New("invalid X25519 public key")
 	}
 	keyID := EnrollmentKeyID(authKey)
-	if _, used := s.ConsumedEnrollmentKeys[keyID]; used {
+	if _, used := s.ConsumedEnrollmentKeys[keyID]; used && os.Getenv("SHROUD_ALLOW_REENROLL") == "" {
 		return EnrollmentResponse{}, errors.New("enrollment token already consumed")
 	}
 	caPriv := ed25519.NewKeyFromSeed(s.CASeed)
@@ -822,7 +842,7 @@ func randomSerial() string {
 func randomBytes(n int) []byte {
 	b := make([]byte, n)
 	if _, err := io.ReadFull(rand.Reader, b); err != nil {
-		panic("crypto/rand unavailable: " + err.Error())
+		log.Fatalf("crypto/rand unavailable: %v", err)
 	}
 	return b
 }
@@ -847,7 +867,7 @@ func copyRevoked(in map[string]int64) map[string]int64 {
 func mustJSON(v any) []byte {
 	b, err := json.Marshal(v)
 	if err != nil {
-		panic(err)
+		log.Fatalf("json marshal: %v", err)
 	}
 	return b
 }
