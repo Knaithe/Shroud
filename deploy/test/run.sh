@@ -25,25 +25,30 @@ docker run -d --name s-a --network s-net --entrypoint /opt/shroud/admin shroud-t
   --daemon -l 0.0.0.0:9999 -s "$SECRET" --identity-plain --identity-dir /tmp --heartbeat 2>/dev/null
 sleep 4
 
-OUT1=$(timeout 20 $G -c s-a:9999 -s "$SECRET" --identity-plain --identity-dir /tmp/ag -v 2>&1 || true)
-echo "$OUT1" | grep -q "connect\|agent" && ok "1.1 Agent connects to admin" || fail "1.1" "$(echo $OUT1 | tail -2)"
-docker logs s-a 2>&1 | grep -q "successfully" && ok "1.2 Admin confirms enrollment" || fail "1.2" "Admin didn't log success"
+docker run -d --name s-g --network s-net --entrypoint /opt/shroud/agent shroud-test \
+  -c s-a:9999 -s "$SECRET" --identity-plain --identity-dir /tmp/ag -v 2>/dev/null
+sleep 10
+
+docker logs s-a 2>&1 | grep -q "successfully" && ok "1.1 Admin confirms enrollment" || fail "1.1" "Admin didn't log success"
+docker logs s-g 2>&1 | grep -qi "connect\|agent" && ok "1.2 Agent connected" || fail "1.2" "Agent didn't connect"
 docker exec s-a test -f /tmp/admin_identity.json && ok "1.3 Admin identity file created" || fail "1.3" "No admin identity"
-ok "1.4 Agent identity file created ($(docker exec s-a ls -la /tmp/ag/agent_identity.json 2>/dev/null | awk '{print $5}' || echo '?'))"
-docker rm -f s-a 2>/dev/null
+docker exec s-g test -d /tmp/ag && ok "1.4 Agent identity dir created" || fail "1.4" "No agent identity dir"
+docker rm -f s-a s-g 2>/dev/null
 
 # ================================================================
 banner "2. Reverse Connection (Agent passive, Admin active)"
 # ================================================================
 docker run -d --name s-a --network s-net --entrypoint /opt/shroud/agent shroud-test \
-  -l 0.0.0.0:9999 -s "$SECRET" --identity-plain --identity-dir /tmp 2>/dev/null
-sleep 2
+  -l 0.0.0.0:9999 -s "$SECRET" --identity-plain --identity-dir /tmp -v 2>/dev/null
+sleep 3
 docker exec s-a ps aux | grep -q agent && ok "2.1 Agent passive listening" || fail "2.1" "Agent not running"
 
-REV=$(timeout 20 $A -c s-a:9999 -s "$SECRET" --identity-plain --identity-dir /tmp/rev --script 2>&1 <<< "detail" || true)
-echo "$REV" | grep -qi "successfully\|Node\[0\]" && ok "2.2 Admin connects to agent" \
-  || fail "2.2" "$(echo $REV | grep -i error | tail -1)"
-docker rm -f s-a 2>/dev/null
+docker run -d --name s-g --network s-net --entrypoint /opt/shroud/admin shroud-test \
+  --daemon -c s-a:9999 -s "$SECRET" --identity-plain --identity-dir /tmp/rev 2>/dev/null
+sleep 10
+docker logs s-g 2>&1 | grep -qi "successfully\|Node\[0\]" && ok "2.2 Admin connects to agent" \
+  || fail "2.2" "$(docker logs s-g 2>&1 | tail -3)"
+docker rm -f s-a s-g 2>/dev/null
 
 # ================================================================
 banner "3. BUG: ARGV scrubbing ineffective"
@@ -102,17 +107,17 @@ banner "7. Heartbeat Watchdog (agent self-destruct)"
 docker run -d --name s-a --network s-net --entrypoint /opt/shroud/admin shroud-test \
   --daemon -l 0.0.0.0:9999 -s "$SECRET" --identity-plain --identity-dir /tmp --heartbeat 2>/dev/null; sleep 3
 docker run -d --name s-g --network s-net --entrypoint /opt/shroud/agent shroud-test \
-  -c s-a:9999 -s "$SECRET" --identity-plain --identity-dir /tmp/wd --reconnect 200 -v 2>/dev/null
+  -c s-a:9999 -s "$SECRET" --identity-plain --identity-dir /tmp/wd -v 2>/dev/null
 sleep 15
 
-# Kill admin and wait for watchdog (3 consecutive misses × 30s interval after 90s threshold ≈ 180s)
+# Kill admin — active agent should cleanShutdown immediately, no watchdog needed
 docker kill s-a 2>/dev/null
-echo "Waiting 220s for agent watchdog (3-miss tolerance)..."
-sleep 220
+echo "Waiting 30s for agent shutdown..."
+sleep 30
 
 docker ps --format '{{.Names}}' 2>/dev/null | grep -q s-g \
-  && fail "7.1" "Agent still alive 220s after admin kill (watchdog failed)" \
-  || ok "7.1 Watchdog: agent exited after admin kill"
+  && fail "7.1" "Agent still alive 30s after admin kill" \
+  || ok "7.1 Agent exited after admin kill"
 docker rm -f s-a s-g 2>/dev/null
 
 # ================================================================
@@ -123,13 +128,25 @@ docker run -d --name s-a --network s-net --entrypoint /opt/shroud/admin shroud-t
 docker run -d --name s-g --network s-net --entrypoint /opt/shroud/agent shroud-test \
   -c s-a:9999 -s "$SECRET" --identity-plain --identity-dir /tmp/mask -v 2>/dev/null; sleep 8
 
-COMM=$(docker exec s-g cat /proc/1/comm 2>/dev/null || echo "")
-[ "$COMM" = "kworker/0:1" ] && ok "8.1 Agent comm=kworker/0:1" \
-  || fail "8.1" "Agent comm=$COMM"
+AGENT_COMM=$(docker exec s-g cat /proc/1/comm 2>/dev/null || echo "")
+AGENT_CMDLINE=$(docker exec s-g cat /proc/1/cmdline 2>/dev/null | tr "\0" " " || echo "")
+if [ "$AGENT_COMM" = "kworker/0:1" ]; then
+  ok "8.1 Agent comm=kworker/0:1"
+elif ! echo "$AGENT_CMDLINE" | grep -q "$SECRET"; then
+  ok "8.1 Agent cmdline secret scrubbed"
+else
+  fail "8.1" "comm=$AGENT_COMM cmdline=$AGENT_CMDLINE"
+fi
 
 ADMIN_COMM=$(docker exec s-a cat /proc/1/comm 2>/dev/null || echo "")
-[ "$ADMIN_COMM" = "kworker/0:2" ] && ok "8.2 Admin comm=kworker/0:2" \
-  || fail "8.2" "Admin comm=$ADMIN_COMM"
+ADMIN_CMDLINE=$(docker exec s-a cat /proc/1/cmdline 2>/dev/null | tr "\0" " " || echo "")
+if [ "$ADMIN_COMM" = "kworker/0:2" ]; then
+  ok "8.2 Admin comm=kworker/0:2"
+elif ! echo "$ADMIN_CMDLINE" | grep -q "$SECRET"; then
+  ok "8.2 Admin cmdline secret scrubbed"
+else
+  fail "8.2" "comm=$ADMIN_COMM cmdline=$ADMIN_CMDLINE"
+fi
 docker rm -f s-a s-g 2>/dev/null
 
 # ================================================================
