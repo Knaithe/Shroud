@@ -97,7 +97,7 @@ func NormalActive(userOptions *Options, cryptoKey []byte, proxy share.Proxy, age
 		}
 
 		if err != nil {
-			log.Fatalf("[*] Error occurred: %s", err.Error())
+			log.Fatalf("[*] Dial failed: %s", err.Error())
 		}
 		utils.EnableKeepAlive(conn)
 
@@ -105,7 +105,7 @@ func NormalActive(userOptions *Options, cryptoKey []byte, proxy share.Proxy, age
 			var tlsConfig *tls.Config
 			tlsConfig, err = transport.NewClientTLSConfig(userOptions.Domain, userOptions.TlsFingerprint, userOptions.TlsInsecure)
 			if err != nil {
-				log.Printf("[*] Error occurred: %s", err.Error())
+				log.Printf("[*] TLS error: %s", err.Error())
 				conn.Close()
 				continue
 			}
@@ -121,7 +121,9 @@ func NormalActive(userOptions *Options, cryptoKey []byte, proxy share.Proxy, age
 		var linkKey []byte
 		linkKey, err = share.ActiveAgentAuthAndExchange(conn, agentID)
 		if err != nil {
-			log.Fatalf("[*] Error occurred: %s", err.Error())
+			fmt.Fprintf(os.Stderr, "[*] Auth failed: %s\n", err.Error())
+			conn.Close()
+			continue
 		}
 
 		sMessage = protocol.NewUpMsg(conn, cryptoKey, linkKey, protocol.TEMP_UUID)
@@ -133,8 +135,9 @@ func NormalActive(userOptions *Options, cryptoKey []byte, proxy share.Proxy, age
 		fHeader, fMessage, err := protocol.DestructMessage(rMessage)
 
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "[*] Handshake failed with %s: %s\n", conn.RemoteAddr().String(), err.Error())
 			conn.Close()
-			log.Fatalf("[*] Fail to connect %s, Error: %s", conn.RemoteAddr().String(), err.Error())
+			continue
 		}
 
 		if fHeader.MessageType == protocol.HI {
@@ -214,14 +217,16 @@ func NormalPassive(userOptions *Options, cryptoKey []byte, agentID *identity.Age
 		var linkKey []byte
 		linkKey, _, err = share.PassiveAgentAuthAndExchange(conn, agentID)
 		if err != nil {
-			log.Fatalf("[*] Error occurred: %s", err.Error())
+			fmt.Fprintf(os.Stderr, "[*] Auth failed: %s\n", err.Error())
+			conn.Close()
+			continue
 		}
 
 		rMessage = protocol.NewUpMsg(conn, cryptoKey, linkKey, protocol.TEMP_UUID)
 		fHeader, fMessage, err := protocol.DestructMessage(rMessage)
 
 		if err != nil {
-			log.Printf("[*] Fail to set connection from %s, Error: %s\n", conn.RemoteAddr().String(), err.Error())
+			fmt.Fprintf(os.Stderr, "[*] Handshake failed from %s: %s\n", conn.RemoteAddr().String(), err.Error())
 			conn.Close()
 			continue
 		}
