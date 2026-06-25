@@ -2,6 +2,9 @@ package process
 
 import (
 	"context"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"Shroud/admin/cli"
@@ -59,7 +62,11 @@ func (admin *Admin) Run(term cli.Terminal) {
 
 	if admin.options != nil && admin.options.Daemon {
 		printer.Warning("[*] Running in daemon mode\r\n")
-		select {}
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
+		sig := <-sigCh
+		printer.Warning("[*] Received %s, shutting down...\r\n", sig)
+		global.AdminCleanExit()
 	}
 
 	console := cli.NewConsole()
