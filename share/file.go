@@ -3,6 +3,7 @@ package share
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -304,7 +305,10 @@ func (file *MyFile) Receive(route string, targetUUID string, identity int) {
 			if identity == ADMIN {
 				file.StatusChan <- &Status{Stat: ADD, Scale: int64(len(data))}
 			}
-			file.Handler.Write(data)
+			if _, err := file.Handler.Write(data); err != nil {
+				log.Printf("[*] File write error: %s", err.Error())
+				return
+			}
 		}
 	}
 }

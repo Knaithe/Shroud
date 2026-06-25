@@ -13,6 +13,7 @@ import (
 func upstreamOffline(mgr *manager.Manager, options *initial.Options) {
 	if options.Mode == initial.NORMAL_ACTIVE || options.Mode == initial.SOCKS5_PROXY_ACTIVE || options.Mode == initial.HTTP_PROXY_ACTIVE || options.Mode == initial.TOR_PROXY_ACTIVE {
 		cleanShutdown()
+		return
 	}
 
 	forceShutdown(mgr)
@@ -45,6 +46,12 @@ func upstreamOffline(mgr *manager.Manager, options *initial.Options) {
 		newConn, linkKey = torHiddenPassiveReconn(options)
 	default:
 		cleanShutdown()
+		return
+	}
+
+	if newConn == nil {
+		cleanShutdown()
+		return
 	}
 
 	global.UpdateGComponent(newConn)

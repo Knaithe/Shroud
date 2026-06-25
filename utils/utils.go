@@ -2,10 +2,11 @@ package utils
 
 import (
 	"crypto/md5"
+	crand "crypto/rand"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
-	"math/rand"
 	"net"
 	"os/exec"
 	"runtime"
@@ -18,12 +19,21 @@ import (
 )
 
 func EnableKeepAlive(conn net.Conn) {
-	switch c := conn.(type) {
-	case *net.TCPConn:
-		c.SetKeepAlive(true)
-		c.SetKeepAlivePeriod(30 * time.Second)
-	case interface{ NetConn() net.Conn }:
-		EnableKeepAlive(c.NetConn())
+	for i := 0; i < 10; i++ {
+		switch c := conn.(type) {
+		case *net.TCPConn:
+			c.SetKeepAlive(true)
+			c.SetKeepAlivePeriod(30 * time.Second)
+			return
+		case interface{ NetConn() net.Conn }:
+			inner := c.NetConn()
+			if inner == conn {
+				return
+			}
+			conn = inner
+		default:
+			return
+		}
 	}
 }
 
@@ -190,19 +200,20 @@ func GetDigitLen(num int) int {
 }
 
 func GetRandomString(l int) string {
-	str := "0123456789abcdefghijklmnopqrstuvwxyz"
-	bytes := []byte(str)
-	result := []byte{}
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	for i := 0; i < l; i++ {
-		result = append(result, bytes[r.Intn(len(bytes))])
+	const charset = "0123456789abcdefghijklmnopqrstuvwxyz"
+	result := make([]byte, l)
+	for i := range result {
+		var b [1]byte
+		crand.Read(b[:])
+		result[i] = charset[int(b[0])%len(charset)]
 	}
 	return string(result)
 }
 
 func GetRandomInt(max int) int {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	return r.Intn(max)
+	var buf [8]byte
+	crand.Read(buf[:])
+	return int(binary.BigEndian.Uint64(buf[:]) % uint64(max))
 }
 
 func ParseFileCommand(commands []string) (string, string, error) {
@@ -266,8 +277,12 @@ func WriteFull(conn net.Conn, data []byte) error {
 	return nil
 }
 
-func SafeSend(ch chan []byte, data []byte) bool {
-	defer func() { recover() }()
+func SafeSend(ch chan []byte, data []byte) (ok bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			ok = false
+		}
+	}()
 	ch <- data
 	return true
 }

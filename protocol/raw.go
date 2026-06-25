@@ -76,6 +76,7 @@ func (message *RawMessage) ConstructData(header *Header, mess interface{}, isPas
 			message.DataBuffer, err = message.CommandSigner.SignCommandPayload(headerAAD, message.DataBuffer)
 			if err != nil {
 				log.Printf("[*] command sign error, aborting send: %s", err.Error())
+				message.DataBuffer = nil
 				return
 			}
 		}
@@ -83,12 +84,14 @@ func (message *RawMessage) ConstructData(header *Header, mess interface{}, isPas
 			message.DataBuffer, err = crypto.AESEncrypt(message.DataBuffer, e2eKey)
 			if err != nil {
 				log.Printf("[*] e2e encrypt error, aborting send: %s", err.Error())
+				message.DataBuffer = nil
 				return
 			}
 		}
 		compressed, gzErr := crypto.GzipCompressE(message.DataBuffer)
 		if gzErr != nil {
 			log.Printf("[*] gzip compress error, aborting send: %s", gzErr.Error())
+			message.DataBuffer = nil
 			return
 		}
 		message.DataBuffer = compressed
@@ -96,6 +99,7 @@ func (message *RawMessage) ConstructData(header *Header, mess interface{}, isPas
 			encrypted, err := crypto.AESEncrypt(message.DataBuffer, message.CryptoSecret)
 			if err != nil {
 				log.Printf("[*] payload encrypt error, aborting send: %s", err.Error())
+				message.DataBuffer = nil
 				return
 			}
 			message.DataBuffer = encrypted

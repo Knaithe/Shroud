@@ -92,7 +92,7 @@ func proxyC2STCP(conn net.Conn, dataChan chan []byte) {
 			conn.Close()
 			return
 		}
-		conn.Write(data)
+		utils.WriteFull(conn, data)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"crypto/tls"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -51,7 +52,8 @@ func achieveUUID(conn net.Conn, cryptoKey []byte, linkKey []byte) (uuid string) 
 
 	if err != nil {
 		conn.Close()
-		log.Fatalf("[*] Fail to achieve UUID, Error: %s", err.Error())
+		fmt.Fprintf(os.Stderr, "[*] Fail to achieve UUID, Error: %s\n", err.Error())
+		os.Exit(1)
 	}
 
 	if fHeader.MessageType == protocol.UUID {
@@ -97,7 +99,8 @@ func NormalActive(userOptions *Options, cryptoKey []byte, proxy share.Proxy, age
 		}
 
 		if err != nil {
-			log.Fatalf("[*] Dial failed: %s", err.Error())
+			fmt.Fprintf(os.Stderr, "[*] Dial failed: %s\n", err.Error())
+			continue
 		}
 		utils.EnableKeepAlive(conn)
 
@@ -105,7 +108,7 @@ func NormalActive(userOptions *Options, cryptoKey []byte, proxy share.Proxy, age
 			var tlsConfig *tls.Config
 			tlsConfig, err = transport.NewClientTLSConfig(userOptions.Domain, userOptions.TlsFingerprint, userOptions.TlsInsecure)
 			if err != nil {
-				log.Printf("[*] TLS error: %s", err.Error())
+				fmt.Fprintf(os.Stderr, "[*] TLS error: %s\n", err.Error())
 				conn.Close()
 				continue
 			}
@@ -120,9 +123,37 @@ func NormalActive(userOptions *Options, cryptoKey []byte, proxy share.Proxy, age
 
 		var linkKey []byte
 		linkKey, err = share.ActiveAgentAuthAndExchange(conn, agentID)
+		if err != nil && len(share.AuthKey) != 0 && errors.Is(err, share.ErrPeerNoCert) {
+			conn.Close()
+			if proxy == nil {
+				conn, err = net.Dial("tcp", userOptions.Connect)
+			} else {
+				conn, err = proxy.Dial()
+			}
+			if err == nil {
+				utils.EnableKeepAlive(conn)
+				if userOptions.TlsEnable {
+					var tlsConfig *tls.Config
+					tlsConfig, err = transport.NewClientTLSConfig(userOptions.Domain, userOptions.TlsFingerprint, userOptions.TlsInsecure)
+					if err == nil {
+						conn = transport.WrapTLSClientConn(conn, tlsConfig)
+					}
+				}
+				if err == nil {
+					param2 := new(protocol.NegParam)
+					param2.Conn = conn
+					param2.Domain = userOptions.Domain
+					proto2 := protocol.NewUpProto(param2)
+					proto2.CNegotiate()
+					linkKey, err = share.ActiveEnrollAndExchange(conn, agentID)
+				}
+			}
+		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "[*] Auth failed: %s\n", err.Error())
-			conn.Close()
+			if conn != nil {
+				conn.Close()
+			}
 			continue
 		}
 
@@ -150,19 +181,21 @@ func NormalActive(userOptions *Options, cryptoKey []byte, proxy share.Proxy, age
 		}
 
 		conn.Close()
-		log.Fatal("[*] Admin looks invalid!\n")
+		fmt.Fprintln(os.Stderr, "[*] Admin looks invalid!")
 	}
 }
 
 func NormalPassive(userOptions *Options, cryptoKey []byte, agentID *identity.AgentStore) (net.Conn, string, []byte) {
 	listenAddr, _, err := utils.CheckIPPort(userOptions.Listen)
 	if err != nil {
-		log.Fatalf("[*] Error occurred: %s", err.Error())
+		fmt.Fprintf(os.Stderr, "[*] Error occurred: %s\n", err.Error())
+		os.Exit(1)
 	}
 
 	listener, err := net.Listen("tcp", listenAddr)
 	if err != nil {
-		log.Fatalf("[*] Error occurred: %s", err.Error())
+		fmt.Fprintf(os.Stderr, "[*] Error occurred: %s\n", err.Error())
+		os.Exit(1)
 	}
 
 	defer func() {
@@ -251,7 +284,8 @@ func NormalPassive(userOptions *Options, cryptoKey []byte, agentID *identity.Age
 func TorHiddenPassive(userOptions *Options, cryptoKey []byte, agentID *identity.AgentStore) (net.Conn, string, []byte) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		log.Fatalf("[*] Error occurred: %s", err.Error())
+		fmt.Fprintf(os.Stderr, "[*] Error occurred: %s\n", err.Error())
+		os.Exit(1)
 	}
 
 	localPort := listener.Addr().(*net.TCPAddr).Port
@@ -259,19 +293,22 @@ func TorHiddenPassive(userOptions *Options, cryptoKey []byte, agentID *identity.
 	tc := share.NewTorControl(userOptions.TorControl, userOptions.TorControlPW)
 	if err := tc.Connect(); err != nil {
 		listener.Close()
-		log.Fatalf("[*] Cannot connect to Tor control port: %s", err.Error())
+		fmt.Fprintf(os.Stderr, "[*] Cannot connect to Tor control port: %s\n", err.Error())
+		os.Exit(1)
 	}
 	if err := tc.Authenticate(); err != nil {
 		listener.Close()
 		tc.Close()
-		log.Fatalf("[*] Tor control authentication failed: %s", err.Error())
+		fmt.Fprintf(os.Stderr, "[*] Tor control authentication failed: %s\n", err.Error())
+		os.Exit(1)
 	}
 
 	onionAddr, err := tc.AddOnion(localPort, localPort)
 	if err != nil {
 		listener.Close()
 		tc.Close()
-		log.Fatalf("[*] Failed to create Tor hidden service: %s", err.Error())
+		fmt.Fprintf(os.Stderr, "[*] Failed to create Tor hidden service: %s\n", err.Error())
+		os.Exit(1)
 	}
 
 	log.Printf("[*] Tor hidden service started: %s:%d\n", onionAddr, localPort)
@@ -415,7 +452,8 @@ func SoReusePassive(userOptions *Options, cryptoKey []byte, agentID *identity.Ag
 
 	listener, err := reuseport.Listen("tcp", listenAddr)
 	if err != nil {
-		log.Fatalf("[*] Error occurred: %s", err.Error())
+		fmt.Fprintf(os.Stderr, "[*] Error occurred: %s\n", err.Error())
+		os.Exit(1)
 	}
 
 	defer func() {

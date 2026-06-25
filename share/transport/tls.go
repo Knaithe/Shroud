@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"time"
 )
 
 func newRandomTLSKeyPair() (*tls.Certificate, error) {
@@ -18,7 +19,12 @@ func newRandomTLSKeyPair() (*tls.Certificate, error) {
 	if err != nil {
 		return nil, err
 	}
-	template := x509.Certificate{SerialNumber: big.NewInt(1)}
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(365 * 24 * time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+	}
 	certDER, err := x509.CreateCertificate(
 		rand.Reader,
 		&template,

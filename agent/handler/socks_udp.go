@@ -19,7 +19,15 @@ type socksLocalAddr struct {
 
 func (addr *socksLocalAddr) byteArray() []byte {
 	bytes := make([]byte, 6)
-	copy(bytes[:4], net.ParseIP(addr.Host).To4())
+	ip := net.ParseIP(addr.Host)
+	if ip == nil {
+		return bytes
+	}
+	ip4 := ip.To4()
+	if ip4 == nil {
+		return bytes
+	}
+	copy(bytes[:4], ip4)
 	bytes[4] = byte(addr.Port >> 8)
 	bytes[5] = byte(addr.Port % 256)
 	return bytes
@@ -123,10 +131,22 @@ func udpAssociate(mgr *manager.Manager, setting *Setting, data []byte, seq uint6
 	protocol.ConstructMessage(sMessage, assHeader, assMess, false)
 	sMessage.SendMessage()
 
-	if adminResponse, ok := <-readyChan; adminResponse != "" && ok {
+	if adminResponse, ok := <-readyChan; ok {
 		temp := strings.Split(adminResponse, ":")
+		if len(temp) != 2 {
+			protocol.ConstructMessage(sMessage, dataHeader, failMess, false)
+			sMessage.SendMessage()
+			setting.success = false
+			return
+		}
 		adminAddr := temp[0]
-		adminPort, _ := strconv.Atoi(temp[1])
+		adminPort, err := strconv.Atoi(temp[1])
+		if err != nil || adminPort < 1 || adminPort > 65535 {
+			protocol.ConstructMessage(sMessage, dataHeader, failMess, false)
+			sMessage.SendMessage()
+			setting.success = false
+			return
+		}
 
 		localAddr := socksLocalAddr{adminAddr, adminPort}
 		buf := make([]byte, 10)

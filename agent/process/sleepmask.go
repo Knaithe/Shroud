@@ -44,7 +44,6 @@ func mask() {
 			if err == nil {
 				st.encLinkKey = enc
 				crypto.Wipe(lk)
-				global.Session.SetLinkKey(lk)
 			}
 		}
 	}

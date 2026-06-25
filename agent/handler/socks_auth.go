@@ -43,6 +43,10 @@ func (socks *Socks) checkMethod(setting *Setting, data []byte, seq uint64) {
 
 	if data[0] == 0x05 {
 		nMethods := int(data[1])
+		if nMethods < 1 || 2+nMethods > len(data) {
+			setting.method = "ILLEGAL"
+			return
+		}
 
 		var supportMethodFinded, userPassFinded, noAuthFinded bool
 

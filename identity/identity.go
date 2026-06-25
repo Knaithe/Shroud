@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -462,9 +461,17 @@ func (s *AdminStore) RevokeCert(uuid string) error {
 	return nil
 }
 
-func (s *AdminStore) ResetEnrollmentKeys() {
+func (s *AdminStore) ResetEnrollmentKeys() map[string]int64 {
 	s.mu.Lock()
+	old := s.ConsumedEnrollmentKeys
 	s.ConsumedEnrollmentKeys = make(map[string]int64)
+	s.mu.Unlock()
+	return old
+}
+
+func (s *AdminStore) RestoreEnrollmentKeys(keys map[string]int64) {
+	s.mu.Lock()
+	s.ConsumedEnrollmentKeys = keys
 	s.mu.Unlock()
 }
 
@@ -532,8 +539,15 @@ func (s *AdminStore) EnrollAgent(authKey, edPub, xPub []byte) (EnrollmentRespons
 		return EnrollmentResponse{}, err
 	}
 	s.AgentCerts[cert.Serial] = cert
+	prevConsumed, hadKey := s.ConsumedEnrollmentKeys[keyID]
 	s.ConsumedEnrollmentKeys[keyID] = time.Now().Unix()
 	if err := s.Save(); err != nil {
+		delete(s.AgentCerts, cert.Serial)
+		if hadKey {
+			s.ConsumedEnrollmentKeys[keyID] = prevConsumed
+		} else {
+			delete(s.ConsumedEnrollmentKeys, keyID)
+		}
 		return EnrollmentResponse{}, err
 	}
 	return EnrollmentResponse{
@@ -688,6 +702,9 @@ func (s *AdminStore) SignCommandPayload(headerAAD, body []byte) ([]byte, error) 
 	}
 	sp.Signature = ed25519.Sign(s.CommandPrivateKey(), commandSigningBytes(headerAAD, sp))
 	if err := s.Save(); err != nil {
+		s.mu.Lock()
+		s.NextCommandSeq = seq
+		s.mu.Unlock()
 		return nil, err
 	}
 	return json.Marshal(sp)
@@ -848,7 +865,7 @@ func randomSerial() string {
 func randomBytes(n int) []byte {
 	b := make([]byte, n)
 	if _, err := io.ReadFull(rand.Reader, b); err != nil {
-		log.Fatalf("crypto/rand unavailable: %v", err)
+		panic("crypto/rand unavailable: " + err.Error())
 	}
 	return b
 }
@@ -873,7 +890,7 @@ func copyRevoked(in map[string]int64) map[string]int64 {
 func mustJSON(v any) []byte {
 	b, err := json.Marshal(v)
 	if err != nil {
-		log.Fatalf("json marshal: %v", err)
+		panic("json marshal: " + err.Error())
 	}
 	return b
 }

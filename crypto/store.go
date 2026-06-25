@@ -11,12 +11,14 @@ import (
 )
 
 const (
-	storeVersion byte = 1
+	storeVersion byte = 2
 	argonTime         = 3
-	argonMemory       = 64 * 1024
+	argonMemory       = 256 * 1024 // KiB = 256 MiB
 	argonThreads      = 4
 	argonKeyLen       = 32
 	saltLen           = 16
+
+	v1ArgonMemory uint32 = 64 * 1024 // KiB = 64 MiB (RFC default)
 )
 
 // EncryptStore encrypts data with a passphrase via Argon2id + AES-256-GCM.
@@ -53,13 +55,20 @@ func DecryptStore(encrypted, passphrase []byte) ([]byte, error) {
 	if len(encrypted) < 1+saltLen+12+16 {
 		return nil, errors.New("encrypted data too short")
 	}
-	if encrypted[0] != storeVersion {
+	ver := encrypted[0]
+	var mem uint32
+	switch ver {
+	case 1:
+		mem = v1ArgonMemory
+	case 2:
+		mem = argonMemory
+	default:
 		return nil, errors.New("unsupported store encryption version")
 	}
 	salt := encrypted[1 : 1+saltLen]
 	payload := encrypted[1+saltLen:]
 
-	key := argon2.IDKey(passphrase, salt, argonTime, argonMemory, argonThreads, argonKeyLen)
+	key := argon2.IDKey(passphrase, salt, argonTime, mem, argonThreads, argonKeyLen)
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err

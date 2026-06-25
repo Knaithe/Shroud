@@ -166,16 +166,22 @@ func (m *socksManager) CloseTCP(seq uint64) {
 		return
 	}
 
-	status := m.socksMap[uuid].socksStatusMap[seq]
+	sm := m.socksMap[uuid]
+	if sm == nil || sm.socksStatusMap == nil {
+		return
+	}
+	status := sm.socksStatusMap[seq]
+	if status == nil {
+		return
+	}
 
-	// bugfix: In order to avoid data loss,so not close conn&listener here.Thx to @lz520520
 	close(status.tcp.dataChan)
 
 	if status.isUDP {
 		close(status.udp.dataChan)
 	}
 
-	delete(m.socksMap[uuid].socksStatusMap, seq)
+	delete(sm.socksStatusMap, seq)
 }
 
 func (m *socksManager) GetUDPStartInfo(seq uint64) (tcpAddr string, uuid string, ok bool) {

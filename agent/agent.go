@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -61,7 +62,8 @@ func main() {
 	}
 	agentID, err := identity.LoadOrCreateAgent(agentIDPath)
 	if err != nil {
-		log.Fatalf("Failed to initialize agent identity: %v", err)
+		fmt.Fprintf(os.Stderr, "Failed to initialize agent identity: %v\n", err)
+		os.Exit(1)
 	}
 	enrolled := false
 	defer func() {
@@ -84,7 +86,8 @@ func main() {
 			magic, _ := share.FingerprintFromAuthKey(share.AuthKey)
 			_ = share.SetMagic(magic)
 		} else {
-			log.Fatal("Missing enrollment secret or stored protocol magic; provide -s/SHROUD_SECRET for first run")
+			fmt.Fprintln(os.Stderr, "Missing enrollment secret or stored protocol magic; provide -s/SHROUD_SECRET for first run")
+			os.Exit(1)
 		}
 	} else {
 		_ = agentID.SetProtocolFingerprint(share.Magic(), "")
@@ -96,7 +99,8 @@ func main() {
 			_, wsPath := share.FingerprintFromAuthKey(share.AuthKey)
 			_ = protocol.SetWebSocketPath(wsPath)
 		} else {
-			log.Fatal("Missing enrollment secret or stored WebSocket path; provide -s/SHROUD_SECRET for first run")
+			fmt.Fprintln(os.Stderr, "Missing enrollment secret or stored WebSocket path; provide -s/SHROUD_SECRET for first run")
+			os.Exit(1)
 		}
 	} else {
 		_ = agentID.SetProtocolFingerprint(nil, protocol.WebSocketPath())
@@ -108,7 +112,8 @@ func main() {
 
 	if options.PadSize > 0 {
 		if err := protocol.SetPadSize(options.PadSize); err != nil {
-			log.Fatalf("[*] Invalid pad size: %s\n", err.Error())
+			fmt.Fprintf(os.Stderr, "[*] Invalid pad size: %s\n", err.Error())
+			os.Exit(1)
 		}
 	}
 	if options.UserAgent != "" {
@@ -157,7 +162,8 @@ func main() {
 	case initial.SO_REUSE_PASSIVE:
 		conn, agent.UUID, linkKey = initial.SoReusePassive(options, cryptoKey, agentID)
 	default:
-		log.Fatal("[*] Unknown Mode")
+		fmt.Fprintln(os.Stderr, "[*] Unknown Mode")
+		os.Exit(1)
 	}
 
 	for i := range options.Secret {

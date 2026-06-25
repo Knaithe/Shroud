@@ -172,11 +172,11 @@ func (topology *Topology) addNode(task *TopoTask) {
 
 	topology.history[task.Target.uuid] = topology.currentIDNum
 
-	topology.nodeOnce.Do(func() { close(topology.NodeReady) })
-
 	topology.ResultChan <- &topoResult{IDNum: topology.currentIDNum}
 
 	topology.currentIDNum++
+
+	topology.nodeOnce.Do(func() { close(topology.NodeReady) })
 }
 
 func (topology *Topology) calculate() {

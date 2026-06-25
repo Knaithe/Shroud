@@ -13,10 +13,20 @@ import (
 	"Shroud/protocol"
 )
 
-var heartbeatSeq uint64
-var missedAcks int32
+type HeartbeatState struct {
+	seq        uint64
+	missedAcks int32
+}
 
-func LetHeartbeat(ctx context.Context, topo *topology.Topology) {
+func NewHeartbeatState() *HeartbeatState {
+	return &HeartbeatState{}
+}
+
+func (hb *HeartbeatState) ResetMissed() {
+	atomic.StoreInt32(&hb.missedAcks, 0)
+}
+
+func LetHeartbeat(ctx context.Context, topo *topology.Topology, hb *HeartbeatState) {
 	topoTask := &topology.TopoTask{
 		Mode:    topology.GETUUID,
 		UUIDNum: 0,
@@ -41,7 +51,7 @@ func LetHeartbeat(ctx context.Context, topo *topology.Topology) {
 		case <-time.After(10*time.Second + time.Duration(cryptoRandIntn(6000))*time.Millisecond):
 		}
 
-		seq := atomic.AddUint64(&heartbeatSeq, 1)
+		seq := atomic.AddUint64(&hb.seq, 1)
 
 		sMessage := protocol.NewDownMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)
 
@@ -61,8 +71,8 @@ func LetHeartbeat(ctx context.Context, topo *topology.Topology) {
 		protocol.ConstructMessage(sMessage, header, HBMess, false)
 		sMessage.SendMessage()
 
-		atomic.AddInt32(&missedAcks, 1)
-		if missed := atomic.LoadInt32(&missedAcks); missed > 5 {
+		atomic.AddInt32(&hb.missedAcks, 1)
+		if missed := atomic.LoadInt32(&hb.missedAcks); missed > 5 {
 			log.Printf("[*] Node %s: %d heartbeats without ACK, closing connection", uuid, missed)
 			global.G_Component.Conn.Close()
 			return
@@ -70,10 +80,6 @@ func LetHeartbeat(ctx context.Context, topo *topology.Topology) {
 			log.Printf("[*] Node %s: %d heartbeats without ACK", uuid, missed)
 		}
 	}
-}
-
-func HandleHeartbeatAck() {
-	atomic.StoreInt32(&missedAcks, 0)
 }
 
 func cryptoRandIntn(max int) int {

@@ -90,9 +90,9 @@ func (agent *Agent) Run() {
 	// waiting for child
 	go agent.waitingChild()
 	// heartbeat watchdog
-	go agent.heartbeatWatchdog()
+	go agent.heartbeatWatchdog(ctx)
 	// agent-initiated heartbeat
-	go agent.agentHeartbeat()
+	go agent.agentHeartbeat(ctx)
 	// process data from upstream
 	agent.handleDataFromUpstream()
 	//agent.handleDataFromDownstream()
@@ -420,26 +420,43 @@ func (agent *Agent) handleHeartbeat(header *protocol.Header, msg *protocol.Heart
 	sMessage.SendMessage()
 }
 
-func (agent *Agent) heartbeatWatchdog() {
+func (agent *Agent) heartbeatWatchdog(ctx context.Context) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	var missCount int
 	for {
-		time.Sleep(30 * time.Second)
-		last := atomic.LoadInt64(&agent.lastHeartbeat)
-		if last == 0 {
-			continue
-		}
-		if time.Now().Unix()-last > 90 {
-			cleanShutdown()
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			last := atomic.LoadInt64(&agent.lastHeartbeat)
+			if last == 0 {
+				missCount = 0
+				continue
+			}
+			if time.Now().Unix()-last > 90 {
+				missCount++
+				if missCount >= 3 {
+					cleanShutdown()
+				}
+			} else {
+				missCount = 0
+			}
 		}
 	}
 }
 
-func (agent *Agent) agentHeartbeat() {
+func (agent *Agent) agentHeartbeat(ctx context.Context) {
 	var seq uint64
 	for {
 		var buf [8]byte
 		rand.Read(buf[:])
 		jitter := time.Duration(binary.BigEndian.Uint64(buf[:])%10000) * time.Millisecond
-		time.Sleep(30*time.Second + jitter)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(30*time.Second + jitter):
+		}
 
 		seq++
 		sMessage := protocol.NewUpMsg(global.G_Component.Conn, global.G_Component.CryptoKey, global.Session.GetLinkKey(), global.G_Component.UUID)

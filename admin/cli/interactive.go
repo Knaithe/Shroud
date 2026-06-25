@@ -5,7 +5,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"Shroud/admin/manager"
@@ -77,7 +80,10 @@ func (console *Console) startLineMode(lt LineTerminal) {
 		if err != nil {
 			if err == io.EOF {
 				printer.Warning("[*] stdin closed, keeping alive (Ctrl+C to exit)\r\n")
-				select {}
+				sigCh := make(chan os.Signal, 1)
+				signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
+				<-sigCh
+				global.AdminCleanExit()
 			}
 			continue
 		}
@@ -506,8 +512,9 @@ func (console *Console) handleMainPanelCommand() {
 				console.ready <- true
 				break
 			}
-			adminIdentity.ResetEnrollmentKeys()
+			old := adminIdentity.ResetEnrollmentKeys()
 			if err := adminIdentity.Save(); err != nil {
+				adminIdentity.RestoreEnrollmentKeys(old)
 				printer.Fail("\r\n[*] Failed to save: %s", err.Error())
 			} else {
 				printer.Success("\r\n[*] All consumed enrollment tokens cleared")

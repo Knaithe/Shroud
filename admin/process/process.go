@@ -22,6 +22,7 @@ type Admin struct {
 	options  *initial.Options
 	topology *topology.Topology
 	reconCtx *initial.ReconnectContext
+	hbState  *handler.HeartbeatState
 }
 
 func NewAdmin(opt *initial.Options, topo *topology.Topology, reconCtx *initial.ReconnectContext) *Admin {
@@ -53,7 +54,8 @@ func (admin *Admin) Run(term cli.Terminal) {
 	go DispatchChildrenMess(admin.mgr, admin.topology)
 
 	if admin.options != nil && admin.options.Heartbeat {
-		go handler.LetHeartbeat(ctx, admin.topology)
+		admin.hbState = handler.NewHeartbeatState()
+		go handler.LetHeartbeat(ctx, admin.topology, admin.hbState)
 	}
 
 	if admin.options != nil && admin.options.AutoSocks != "" {
@@ -214,7 +216,9 @@ func (admin *Admin) handleMessFromDownstream(term cli.Terminal) {
 		case protocol.HEARTBEAT:
 			// agent-initiated keepalive; no action needed
 		case protocol.HEARTBEATACK:
-			handler.HandleHeartbeatAck()
+			if admin.hbState != nil {
+				admin.hbState.ResetMissed()
+			}
 		default:
 			printer.Fail("\r\n[*] Unknown Message!")
 		}
