@@ -577,7 +577,7 @@ func passiveAuthDispatchFull(conn net.Conn, cfg *certPassiveConfig) (passiveAuth
 	}
 	if string(magicBuf) != string(magic) {
 		conn.Close()
-		return res, errors.New("invalid magic")
+		return res, errors.New("invalid magic: peer may be using a different -s secret or incompatible version")
 	}
 	return passiveAuthDispatchAfterMagicFull(conn, cfg)
 }

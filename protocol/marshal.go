@@ -12,6 +12,8 @@ func (m *HIMess) MarshalBinary() []byte {
 	w.putStr(m.UUID)
 	w.putU16(m.IsAdmin)
 	w.putU16(m.IsReconnect)
+	w.putU16(m.VersionLen)
+	w.putStr(m.Version)
 	return w.Bytes()
 }
 
@@ -23,6 +25,10 @@ func (m *HIMess) UnmarshalBinary(data []byte) error {
 	m.UUID = r.str(int(m.UUIDLen))
 	m.IsAdmin = r.u16()
 	m.IsReconnect = r.u16()
+	if r.err == nil && r.pos+2 <= len(r.data) {
+		m.VersionLen = r.u16()
+		m.Version = r.str(int(m.VersionLen))
+	}
 	return r.err
 }
 

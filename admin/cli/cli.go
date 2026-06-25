@@ -2,9 +2,9 @@ package cli
 
 import (
 	"fmt"
-)
 
-const SHROUD_VERSION = "v2.2"
+	"Shroud/protocol"
+)
 
 // Banner 程序图标
 func Banner() {
@@ -15,7 +15,7 @@ func Banner() {
   ___/ / / / / /  / /_/ / /_/ / /_/
  /____/_/ /_/_/   \____/\__,_/\__/
 			            { %s }
-`, SHROUD_VERSION)
+`, protocol.SHROUD_VERSION)
 }
 
 // ShowMainHelp 打印admin模式下的帮助
@@ -25,6 +25,7 @@ func ShowMainHelp() {
 	detail                                  		Display connected nodes' detail
 	topo                                     		Display nodes' topology
 	use        <id>                          		Select the target node you want to use
+	resettoken                               		Clear all consumed enrollment tokens
 	exit                                     		Exit Shroud
   `)
 }

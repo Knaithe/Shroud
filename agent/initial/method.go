@@ -37,6 +37,14 @@ func initChainName(secret []byte) {
 	chainName = "CT" + hex.EncodeToString(h[:3])
 }
 
+func logVersionCheck(peerVersion string) {
+	if peerVersion == "" {
+		log.Printf("[*] Warning: peer is running an older version without version negotiation")
+	} else if peerVersion != protocol.SHROUD_VERSION {
+		log.Printf("[*] Warning: version mismatch: local=%s remote=%s", protocol.SHROUD_VERSION, peerVersion)
+	}
+}
+
 func achieveUUID(conn net.Conn, cryptoKey []byte, linkKey []byte) (uuid string) {
 	rMessage := protocol.NewUpMsg(conn, cryptoKey, linkKey, protocol.TEMP_UUID)
 	fHeader, fMessage, err := protocol.DestructMessage(rMessage)
@@ -64,6 +72,8 @@ func NormalActive(userOptions *Options, cryptoKey []byte, proxy share.Proxy, age
 		UUID:        protocol.TEMP_UUID,
 		IsAdmin:     0,
 		IsReconnect: 0,
+		VersionLen:  uint16(len(protocol.SHROUD_VERSION)),
+		Version:     protocol.SHROUD_VERSION,
 	}
 
 	header := &protocol.Header{
@@ -89,6 +99,7 @@ func NormalActive(userOptions *Options, cryptoKey []byte, proxy share.Proxy, age
 		if err != nil {
 			log.Fatalf("[*] Error occurred: %s", err.Error())
 		}
+		utils.EnableKeepAlive(conn)
 
 		if userOptions.TlsEnable {
 			var tlsConfig *tls.Config
@@ -129,6 +140,7 @@ func NormalActive(userOptions *Options, cryptoKey []byte, proxy share.Proxy, age
 		if fHeader.MessageType == protocol.HI {
 			mmess := fMessage.(*protocol.HIMess)
 			if mmess.Greeting == share.GreetAck() && mmess.IsAdmin == 1 {
+				logVersionCheck(mmess.Version)
 				uuid := achieveUUID(conn, cryptoKey, linkKey)
 				return conn, uuid, linkKey
 			}
@@ -163,6 +175,8 @@ func NormalPassive(userOptions *Options, cryptoKey []byte, agentID *identity.Age
 		UUID:        protocol.TEMP_UUID,
 		IsAdmin:     0,
 		IsReconnect: 0,
+		VersionLen:  uint16(len(protocol.SHROUD_VERSION)),
+		Version:     protocol.SHROUD_VERSION,
 	}
 
 	header := &protocol.Header{
@@ -179,6 +193,7 @@ func NormalPassive(userOptions *Options, cryptoKey []byte, agentID *identity.Age
 			log.Printf("[*] Error occurred: %s\n", err.Error())
 			continue
 		}
+		utils.EnableKeepAlive(conn)
 
 		if userOptions.TlsEnable {
 			var tlsConfig *tls.Config
@@ -214,6 +229,7 @@ func NormalPassive(userOptions *Options, cryptoKey []byte, agentID *identity.Age
 		if fHeader.MessageType == protocol.HI {
 			mmess := fMessage.(*protocol.HIMess)
 			if mmess.Greeting == share.GreetHello() && mmess.IsAdmin == 1 {
+				logVersionCheck(mmess.Version)
 				sMessage = protocol.NewUpMsg(conn, cryptoKey, linkKey, protocol.TEMP_UUID)
 				protocol.ConstructMessage(sMessage, header, hiMess, false)
 				sMessage.SendMessage()
@@ -268,6 +284,8 @@ func TorHiddenPassive(userOptions *Options, cryptoKey []byte, agentID *identity.
 		UUID:        protocol.TEMP_UUID,
 		IsAdmin:     0,
 		IsReconnect: 0,
+		VersionLen:  uint16(len(protocol.SHROUD_VERSION)),
+		Version:     protocol.SHROUD_VERSION,
 	}
 
 	header := &protocol.Header{
@@ -284,6 +302,7 @@ func TorHiddenPassive(userOptions *Options, cryptoKey []byte, agentID *identity.
 			log.Printf("[*] Error occurred: %s\n", err.Error())
 			continue
 		}
+		utils.EnableKeepAlive(conn)
 
 		param := new(protocol.NegParam)
 		param.Conn = conn
@@ -309,6 +328,7 @@ func TorHiddenPassive(userOptions *Options, cryptoKey []byte, agentID *identity.
 		if fHeader.MessageType == protocol.HI {
 			mmess := fMessage.(*protocol.HIMess)
 			if mmess.Greeting == share.GreetHello() && mmess.IsAdmin == 1 {
+				logVersionCheck(mmess.Version)
 				sMessage = protocol.NewUpMsg(conn, cryptoKey, linkKey, protocol.TEMP_UUID)
 				protocol.ConstructMessage(sMessage, header, hiMess, false)
 				sMessage.SendMessage()
@@ -406,6 +426,8 @@ func SoReusePassive(userOptions *Options, cryptoKey []byte, agentID *identity.Ag
 		UUID:        protocol.TEMP_UUID,
 		IsAdmin:     0,
 		IsReconnect: 0,
+		VersionLen:  uint16(len(protocol.SHROUD_VERSION)),
+		Version:     protocol.SHROUD_VERSION,
 	}
 
 	header := &protocol.Header{
@@ -422,6 +444,7 @@ func SoReusePassive(userOptions *Options, cryptoKey []byte, agentID *identity.Ag
 			log.Printf("[*] Error occurred: %s\n", err.Error())
 			continue
 		}
+		utils.EnableKeepAlive(conn)
 
 		if userOptions.TlsEnable {
 			var tlsConfig *tls.Config
@@ -456,6 +479,7 @@ func SoReusePassive(userOptions *Options, cryptoKey []byte, agentID *identity.Ag
 		if fHeader.MessageType == protocol.HI {
 			mmess := fMessage.(*protocol.HIMess)
 			if mmess.Greeting == share.GreetHello() && mmess.IsAdmin == 1 {
+				logVersionCheck(mmess.Version)
 				sMessage = protocol.NewUpMsg(conn, cryptoKey, linkKey, protocol.TEMP_UUID)
 				protocol.ConstructMessage(sMessage, header, hiMess, false)
 				sMessage.SendMessage()

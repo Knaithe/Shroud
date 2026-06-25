@@ -2,6 +2,7 @@ package process
 
 import (
 	"context"
+	"time"
 
 	"Shroud/admin/cli"
 	"Shroud/admin/handler"
@@ -52,6 +53,10 @@ func (admin *Admin) Run(term cli.Terminal) {
 		go handler.LetHeartbeat(ctx, admin.topology)
 	}
 
+	if admin.options != nil && admin.options.AutoSocks != "" {
+		go admin.autoStartSocks(ctx)
+	}
+
 	if admin.options != nil && admin.options.Daemon {
 		printer.Warning("[*] Running in daemon mode\r\n")
 		select {}
@@ -60,6 +65,39 @@ func (admin *Admin) Run(term cli.Terminal) {
 	console := cli.NewConsole()
 	console.Init(ctx, term, admin.topology, admin.mgr)
 	console.Run()
+}
+
+func (admin *Admin) autoStartSocks(ctx context.Context) {
+	select {
+	case <-admin.topology.NodeReady:
+	case <-time.After(30 * time.Second):
+		printer.Fail("[*] Timeout waiting for agent, auto-socks aborted\r\n")
+		return
+	}
+
+	topoTask := &topology.TopoTask{
+		Mode:    topology.GETUUID,
+		UUIDNum: 0,
+	}
+	admin.topology.TaskChan <- topoTask
+	topoResult := <-admin.topology.ResultChan
+	uuid := topoResult.UUID
+
+	topoTask = &topology.TopoTask{
+		Mode: topology.GETROUTE,
+		UUID: uuid,
+	}
+	admin.topology.TaskChan <- topoTask
+	topoResult = <-admin.topology.ResultChan
+	route := topoResult.Route
+
+	socks := handler.NewSocks(admin.options.AutoSocks)
+	printer.Warning("[*] Auto-starting SOCKS5 on %s:%s...\r\n", socks.Addr, socks.Port)
+	if err := socks.LetSocks(ctx, admin.mgr, route, uuid); err != nil {
+		printer.Fail("[*] Auto-socks failed: %s\r\n", err.Error())
+	} else {
+		printer.Success("[*] SOCKS5 started on %s:%s\r\n", socks.Addr, socks.Port)
+	}
 }
 
 func (admin *Admin) handleMessFromDownstream(term cli.Terminal) {

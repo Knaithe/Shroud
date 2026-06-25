@@ -38,6 +38,7 @@ func NewHelper() *Helper {
 		"use",
 		"detail",
 		"topo",
+		"resettoken",
 		"help",
 		"exit",
 	}

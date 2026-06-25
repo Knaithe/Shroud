@@ -2,6 +2,7 @@ package topology
 
 import (
 	"fmt"
+	"sync"
 
 	"Shroud/admin/printer"
 	"Shroud/protocol"
@@ -37,6 +38,7 @@ type Topology struct {
 	TaskChan   chan *TopoTask
 	ResultChan chan *topoResult
 	NodeReady  chan struct{}
+	nodeOnce   sync.Once
 }
 
 type node struct {
@@ -79,7 +81,7 @@ func NewTopology() *Topology {
 	topology.currentIDNum = 0
 	topology.TaskChan = make(chan *TopoTask)
 	topology.ResultChan = make(chan *topoResult)
-	topology.NodeReady = make(chan struct{}, 1)
+	topology.NodeReady = make(chan struct{})
 	return topology
 }
 
@@ -170,10 +172,7 @@ func (topology *Topology) addNode(task *TopoTask) {
 
 	topology.history[task.Target.uuid] = topology.currentIDNum
 
-	select {
-	case topology.NodeReady <- struct{}{}:
-	default:
-	}
+	topology.nodeOnce.Do(func() { close(topology.NodeReady) })
 
 	topology.ResultChan <- &topoResult{IDNum: topology.currentIDNum}
 

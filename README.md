@@ -187,6 +187,11 @@ Shroud是一个利用go语言编写、专为渗透测试工作者制作的多级
 - 证书吊销(`revoke`)：Admin吊销指定节点证书，断开并阻止其重连
 - 多平台编译(`make all`)：Linux/macOS/Windows/MIPS/ARM/FreeBSD共9个平台，CGO_ENABLED=0静态编译
 - 节点下线(`shutdown`)：Admin远程终止指定节点
+- 自动SOCKS5(`--socks <端口>`)：Admin启动时指定端口，首个Agent连入后自动开启SOCKS5代理
+- 清理注册令牌(`resettoken`)：一键清空Admin已消耗的enrollment token，允许Agent重新注册
+- Script模式保活(`--script`)：stdin命令执行完毕后进程保持运行，不再退出
+- Agent主动心跳(自动)：Agent每30s+随机抖动主动发送HEARTBEAT探测连接存活，断线自动触发重连
+- 强制重注册(`--force-reenroll`)：Agent端清除旧身份重新注册，配合`SHROUD_ALLOW_REENROLL`环境变量
 
 **加密与认证**
 
@@ -195,6 +200,7 @@ Shroud是一个利用go语言编写、专为渗透测试工作者制作的多级
 - TLS指纹锁定(`--tls-fingerprint <sha256>`)：首次连接打印对端证书指纹，后续连接校验一致性
 - 身份文件加密(`--passphrase <口令>`)：Argon2id密钥派生(time=3,mem=64KB)+AES-256-GCM加密存储，也可通过`SHROUD_PASSPHRASE`环境变量设置
 - CA密钥分离(`--ca-file <路径>`)：CA根密钥可离线存储，仅签发证书时挂载
+- 协议版本协商(自动)：HI握手时交换版本号，版本不匹配打印警告（不拒绝连接），`invalid magic`报错时提示可能原因
 
 **匿名与隐蔽**
 
@@ -297,6 +303,7 @@ Shroud一共包含两种角色，分别是：
 --identity-plain 允许身份文件明文存储(不推荐，默认要求加密)
 --ca-file 离线CA密钥文件路径(可选，用于证书签发)
 --pad-size 流量填充块大小(可选，如4096，需admin和agent一致)
+--socks 首个Agent连入后自动开启SOCKS5代理(格式: [ip:]port，如 7777 或 0.0.0.0:7777)
 ```
 
 - agent
@@ -336,6 +343,7 @@ Shroud一共包含两种角色，分别是：
 --user-agent 自定义User-Agent(多个以|分隔，每次请求随机选择)
 --front-domain 域前置Host头(WebSocket模式下伪装为指定域名)
 --origin 自定义Origin头(WebSocket模式下替换默认值)
+--force-reenroll 清除旧身份文件并重新注册(配合admin端SHROUD_ALLOW_REENROLL=1环境变量)
 ```
 
 ### 参数用法
@@ -1066,7 +1074,15 @@ admin控制台分为两个层级，第一层为主panel，包含的命令如下
   detail                                  		Display connected nodes' detail
   topo                                     		Display nodes' topology
   use        <id>                          		Select the target node you want to use
+  resettoken                               		Clear all consumed enrollment tokens
   exit                                     		Exit Shroud
+```
+
+- `resettoken`: 清空所有已消耗的enrollment token，允许Agent使用相同secret重新注册
+
+```
+(admin) >> resettoken
+[*] All consumed enrollment tokens cleared
 ```
 
 - `detail`: 展示在线节点的详细信息
@@ -1549,6 +1565,30 @@ rm -rf /tmp/sg*     # --identity-dir 指定的目录
 ```
 
 > **注意：** `--self-delete` 和 `--fileless` 模式下，Agent 退出时已自动清除部分文件。但 systemd unit 和环境变量文件仍需手动清理。
+
+## 常见问题
+
+### `invalid magic` 错误
+
+**原因**：Admin和Agent的`-s`口令不一致，或者使用了不同版本编译的二进制。magic是从`-s`口令HMAC派生的4字节指纹，双方必须完全一致。
+
+**解决**：
+1. 确认Admin和Agent使用完全相同的`-s`值
+2. 确认双方是同一次`make`编译的二进制
+3. 如果更换了secret，需要双方都清理旧identity文件重新注册
+
+### `enrollment token already consumed` 错误
+
+**原因**：Agent首次注册时消耗了enrollment token，即使注册失败token也会被标记为已消耗。
+
+**解决**：
+1. Admin控制台执行`resettoken`清空已消耗的token
+2. 或设置环境变量`SHROUD_ALLOW_REENROLL=1`启动Admin
+3. Agent端使用`--force-reenroll`清除旧身份重新注册
+
+### 版本不匹配警告
+
+握手时Admin和Agent会交换协议版本号。版本不匹配时会打印警告（如`version mismatch: local=v2.3 remote=v2.2`），但不会拒绝连接。建议保持Admin和Agent版本一致以获得最佳兼容性。
 
 ## 注意事项
 

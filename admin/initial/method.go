@@ -32,6 +32,7 @@ func dialAndNegotiate(userOptions *Options, proxy share.Proxy) (net.Conn, error)
 	if err != nil {
 		return nil, err
 	}
+	utils.EnableKeepAlive(conn)
 	if userOptions.TlsEnable {
 		var tlsConfig *tls.Config
 		tlsConfig, err = transport.NewClientTLSConfig(userOptions.Domain, userOptions.TlsFingerprint, userOptions.TlsInsecure)
@@ -88,6 +89,8 @@ func NormalActive(userOptions *Options, cryptoKey []byte, topo *topology.Topolog
 		UUID:        protocol.ADMIN_UUID,
 		IsAdmin:     1,
 		IsReconnect: 0,
+		VersionLen:  uint16(len(protocol.SHROUD_VERSION)),
+		Version:     protocol.SHROUD_VERSION,
 	}
 
 	header := &protocol.Header{
@@ -136,6 +139,7 @@ func NormalActive(userOptions *Options, cryptoKey []byte, topo *topology.Topolog
 		if fHeader.MessageType == protocol.HI {
 			mmess := fMessage.(*protocol.HIMess)
 			if mmess.Greeting == share.GreetAck() && mmess.IsAdmin == 0 {
+				logVersionCheck(mmess.Version, conn.RemoteAddr().String())
 				if mmess.IsReconnect == 0 {
 					assignedUUID := dispatchUUID(conn, cryptoKey, linkKey)
 					if len(peerCert.Signature) != 0 {
@@ -205,6 +209,8 @@ func NormalPassive(userOptions *Options, cryptoKey []byte, topo *topology.Topolo
 		UUID:        protocol.ADMIN_UUID,
 		IsAdmin:     1,
 		IsReconnect: 0,
+		VersionLen:  uint16(len(protocol.SHROUD_VERSION)),
+		Version:     protocol.SHROUD_VERSION,
 	}
 
 	header := &protocol.Header{
@@ -221,6 +227,7 @@ func NormalPassive(userOptions *Options, cryptoKey []byte, topo *topology.Topolo
 			printer.Fail("[*] Error occurred: %s\r\n", err.Error())
 			continue
 		}
+		utils.EnableKeepAlive(conn)
 
 		if userOptions.TlsEnable {
 			var tlsConfig *tls.Config
@@ -260,6 +267,7 @@ func NormalPassive(userOptions *Options, cryptoKey []byte, topo *topology.Topolo
 		if fHeader.MessageType == protocol.HI {
 			mmess := fMessage.(*protocol.HIMess)
 			if mmess.Greeting == share.GreetHello() && mmess.IsAdmin == 0 {
+				logVersionCheck(mmess.Version, conn.RemoteAddr().String())
 				sMessage = protocol.NewDownMsg(conn, cryptoKey, linkKey, protocol.ADMIN_UUID)
 				protocol.ConstructMessage(sMessage, header, hiMess, false)
 				sMessage.SendMessage()
@@ -329,6 +337,8 @@ func ActiveReconnect(ctx *ReconnectContext) (net.Conn, []byte, error) {
 		UUID:        protocol.ADMIN_UUID,
 		IsAdmin:     1,
 		IsReconnect: 1,
+		VersionLen:  uint16(len(protocol.SHROUD_VERSION)),
+		Version:     protocol.SHROUD_VERSION,
 	}
 	header := &protocol.Header{
 		Sender:      protocol.ADMIN_UUID,
@@ -383,6 +393,14 @@ func ActiveReconnect(ctx *ReconnectContext) (net.Conn, []byte, error) {
 		conn.Close()
 	}
 	return nil, nil, fmt.Errorf("reconnection failed after %d attempts", maxAttempts)
+}
+
+func logVersionCheck(peerVersion, addr string) {
+	if peerVersion == "" {
+		printer.Warning("[*] Peer %s is running an older version without version negotiation\r\n", addr)
+	} else if peerVersion != protocol.SHROUD_VERSION {
+		printer.Warning("[*] Version mismatch with %s: local=%s remote=%s\r\n", addr, protocol.SHROUD_VERSION, peerVersion)
+	}
 }
 
 func reconnBackoff(attempt int) time.Duration {

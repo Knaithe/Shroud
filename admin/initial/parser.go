@@ -47,6 +47,7 @@ type Options struct {
 	IdentityPlain  bool
 	CAFile         string
 	PadSize        int
+	AutoSocks      string
 }
 
 var args *Options
@@ -68,7 +69,7 @@ func init() {
 	flag.StringVar(&args.Downstream, "down", "raw", "Downstream data type you want to use")
 	flag.StringVar(&args.Domain, "domain", "", "Domain name for TLS SNI/WS")
 	flag.BoolVar(&args.TlsEnable, "tls-enable", false, "Encrypt connection by TLS")
-	flag.BoolVar(&args.Heartbeat, "heartbeat", false, "Send heartbeat packet to first agent")
+	flag.BoolVar(&args.Heartbeat, "heartbeat", true, "Send heartbeat packet to first agent")
 	flag.StringVar(&args.TlsFingerprint, "tls-fingerprint", "", "Expected TLS certificate SHA256 fingerprint for pinning")
 	flag.BoolVar(&args.TlsInsecure, "tls-insecure", false, "Allow TLS without certificate pinning (TOFU mode)")
 	flag.BoolVar(&args.Script, "script", false, "Read commands from stdin instead of interactive terminal")
@@ -80,6 +81,7 @@ func init() {
 	flag.BoolVar(&args.IdentityPlain, "identity-plain", false, "Allow plaintext identity storage (unsafe)")
 	flag.StringVar(&args.CAFile, "ca-file", "", "Separate CA key file (offline CA)")
 	flag.IntVar(&args.PadSize, "pad-size", 0, "Traffic padding block size")
+	flag.StringVar(&args.AutoSocks, "socks", "", "Auto-start SOCKS5 on this [ip:]port when first agent connects")
 
 	flag.Usage = newUsage
 }

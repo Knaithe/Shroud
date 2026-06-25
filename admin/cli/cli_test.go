@@ -3,6 +3,8 @@ package cli
 import (
 	"sort"
 	"testing"
+
+	"Shroud/protocol"
 )
 
 // ===========================================================================
@@ -35,7 +37,7 @@ func TestNewHelper(t *testing.T) {
 }
 
 func TestHelper_AdminCommands(t *testing.T) {
-	expected := []string{"use", "detail", "topo", "help", "exit"}
+	expected := []string{"use", "detail", "topo", "resettoken", "help", "exit"}
 	h := NewHelper()
 	if len(h.adminList) != len(expected) {
 		t.Fatalf("expected %d admin commands, got %d", len(expected), len(h.adminList))
@@ -409,7 +411,7 @@ func TestKeyConstants(t *testing.T) {
 }
 
 func TestShroudVersion(t *testing.T) {
-	if SHROUD_VERSION == "" {
+	if protocol.SHROUD_VERSION == "" {
 		t.Error("SHROUD_VERSION should not be empty")
 	}
 }

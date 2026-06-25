@@ -66,6 +66,7 @@ func normalPassiveReconn(options *initial.Options) (net.Conn, []byte) {
 			log.Printf("[*] Error occurred: %s\n", err.Error())
 			continue
 		}
+		utils.EnableKeepAlive(conn)
 
 		if global.Session.TLSEnable {
 			var tlsConfig *tls.Config
@@ -160,6 +161,7 @@ func soReusePassiveReconn(options *initial.Options) (net.Conn, []byte) {
 			log.Printf("[*] Error occurred: %s\n", err.Error())
 			continue
 		}
+		utils.EnableKeepAlive(conn)
 
 		if global.Session.TLSEnable {
 			var tlsConfig *tls.Config
@@ -258,6 +260,7 @@ func normalReconnActiveReconn(options *initial.Options, proxy share.Proxy) (net.
 			attempt++
 			continue
 		}
+		utils.EnableKeepAlive(conn)
 
 		if global.Session.TLSEnable {
 			var tlsConfig *tls.Config
@@ -380,6 +383,7 @@ func torHiddenPassiveReconn(options *initial.Options) (net.Conn, []byte) {
 			log.Printf("[*] Error occurred: %s\n", err.Error())
 			continue
 		}
+		utils.EnableKeepAlive(conn)
 
 		param := new(protocol.NegParam)
 		param.Conn = conn

@@ -76,8 +76,8 @@ func (console *Console) startLineMode(lt LineTerminal) {
 		line, err := lt.ReadLine()
 		if err != nil {
 			if err == io.EOF {
-				global.AdminCleanExit()
-				return
+				printer.Warning("[*] stdin closed, keeping alive (Ctrl+C to exit)\r\n")
+				select {}
 			}
 			continue
 		}
@@ -496,6 +496,22 @@ func (console *Console) handleMainPanelCommand() {
 
 			ShowMainHelp()
 
+			console.ready <- true
+		case "resettoken":
+			if console.expectParams(fCommand, 1, MAIN, 0) {
+				break
+			}
+			if adminIdentity == nil {
+				printer.Fail("\r\n[*] Identity store not available")
+				console.ready <- true
+				break
+			}
+			adminIdentity.ResetEnrollmentKeys()
+			if err := adminIdentity.Save(); err != nil {
+				printer.Fail("\r\n[*] Failed to save: %s", err.Error())
+			} else {
+				printer.Success("\r\n[*] All consumed enrollment tokens cleared")
+			}
 			console.ready <- true
 		case "exit":
 			if console.expectParams(fCommand, 1, MAIN, 0) {

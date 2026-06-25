@@ -462,6 +462,12 @@ func (s *AdminStore) RevokeCert(uuid string) error {
 	return nil
 }
 
+func (s *AdminStore) ResetEnrollmentKeys() {
+	s.mu.Lock()
+	s.ConsumedEnrollmentKeys = make(map[string]int64)
+	s.mu.Unlock()
+}
+
 func (s *AdminStore) NodePrivateKey() ed25519.PrivateKey { return ed25519.NewKeyFromSeed(s.NodeSeed) }
 func (s *AgentStore) NodePrivateKey() ed25519.PrivateKey { return ed25519.NewKeyFromSeed(s.NodeSeed) }
 func (s *AdminStore) CommandPrivateKey() ed25519.PrivateKey {

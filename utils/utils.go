@@ -17,6 +17,16 @@ import (
 	"golang.org/x/text/encoding/simplifiedchinese"
 )
 
+func EnableKeepAlive(conn net.Conn) {
+	switch c := conn.(type) {
+	case *net.TCPConn:
+		c.SetKeepAlive(true)
+		c.SetKeepAlivePeriod(30 * time.Second)
+	case interface{ NetConn() net.Conn }:
+		EnableKeepAlive(c.NetConn())
+	}
+}
+
 func GenerateUUID() string {
 	u2, _ := uuid.NewV4()
 	uu := strings.Replace(u2.String(), "-", "", -1)

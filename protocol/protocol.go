@@ -84,6 +84,8 @@ const (
 	HEARTBEATACK
 )
 
+const SHROUD_VERSION = "v2.3"
+
 var ADMIN_UUID = "IAMADMINXD"
 var TEMP_UUID = "IAMNEWHERE"
 var TEMP_ROUTE = ""
@@ -151,6 +153,8 @@ type HIMess struct {
 	UUID        string
 	IsAdmin     uint16
 	IsReconnect uint16
+	VersionLen  uint16
+	Version     string
 }
 
 type UUIDMess struct {
