@@ -96,7 +96,7 @@ func init() {
 	flag.StringVar(&args.Domain, "domain", "", "")
 	flag.BoolVar(&args.TlsEnable, "tls-enable", false, "")
 	flag.StringVar(&args.TlsFingerprint, "tls-fingerprint", "", "")
-	flag.BoolVar(&args.TlsInsecure, "tls-insecure", false, "")
+	flag.BoolVar(&args.TlsInsecure, "tls-insecure", false, "Deprecated compatibility flag; TLS without --tls-fingerprint is accepted by default")
 	flag.StringVar(&args.Magic, "magic", "", "")
 	flag.StringVar(&args.WSPath, "ws-path", "", "")
 	flag.BoolVar(&args.Verbose, "v", false, "")
@@ -261,10 +261,6 @@ func applyProtocolFingerprint(option *Options) {
 }
 
 func checkOptions(option *Options) error {
-	if option.TlsEnable && option.TlsFingerprint == "" && !option.TlsInsecure {
-		return errors.New("--tls-enable requires --tls-fingerprint or --tls-insecure")
-	}
-
 	var err error
 
 	if args.Connect != "" && !share.IsOnionAddress(args.Connect) {

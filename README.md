@@ -198,7 +198,7 @@ Shroud是一个利用go语言编写、专为渗透测试工作者制作的多级
 
 - 一次性注册(`-s <口令>`)：首次连接HMAC挑战-应答互认证，通过后Admin CA自动签发Ed25519证书，后续连接使用证书认证
 - 五层加密架构：TLS(可选`--tls-enable`) → LinkKey(X25519 ECDH+HKDF逐跳帧加密) → CryptoKey(AES-256-GCM载荷加密) → E2E(per-peer ECDH端到端加密) → 命令签名(Ed25519+序列号+5分钟时间窗口)
-- TLS指纹锁定(`--tls-fingerprint <sha256>`)：首次连接打印对端证书指纹，后续连接校验一致性
+- TLS证书校验：`--tls-enable` 可直接启用TLS并打印对端证书指纹；需要严格锁定时再加 `--tls-fingerprint <sha256>`，指纹不匹配会拒绝连接
 - 身份文件加密(`--passphrase <口令>`)：Argon2id密钥派生(time=3,mem=256MB)+AES-256-GCM加密存储，也可通过`SHROUD_PASSPHRASE`环境变量设置
 - CA密钥分离(`--ca-file <路径>`)：CA根密钥可离线存储，仅签发证书时挂载
 - 协议版本协商(自动)：HI握手时交换版本号，版本不匹配打印警告（不拒绝连接），`invalid magic`报错时提示可能原因
@@ -295,8 +295,8 @@ Shroud一共包含两种角色，分别是：
 --socks5-proxyp socks5代理服务器密码(可选)
 --http-proxy http代理服务器地址
 --down 下游协议类型,默认为裸TCP流量,可选WS(WebSocket)
---tls-enable 为节点通信启用TLS
---tls-fingerprint 预期的TLS证书SHA256指纹，用于证书锁定
+--tls-enable 为节点通信启用TLS；未提供fingerprint时采用首次信任(TOFU)并打印对端证书指纹
+--tls-fingerprint 可选，预期的TLS证书SHA256指纹；提供后会严格校验，不匹配则拒绝连接
 --domain 指定TLS SNI/WebSocket域名，若为空，默认为目标节点地址
 --heartbeat 心跳保活(默认开启，--heartbeat=false可关闭)
 --tor-proxy Tor SOCKS5代理地址，如 127.0.0.1:9050
@@ -325,8 +325,8 @@ Shroud一共包含两种角色，分别是：
 --up 上游协议类型,默认为裸TCP流量,可选WS(WebSocket)
 --down 下游协议类型,默认为裸TCP流量,可选WS(WebSocket)
 --cs 运行平台的shell编码类型，默认为utf-8，可选gbk
---tls-enable 为节点通信启用TLS
---tls-fingerprint 预期的TLS证书SHA256指纹，用于证书锁定
+--tls-enable 为节点通信启用TLS；未提供fingerprint时采用首次信任(TOFU)并打印对端证书指纹
+--tls-fingerprint 可选，预期的TLS证书SHA256指纹；提供后会严格校验，不匹配则拒绝连接
 --domain 指定TLS SNI/WebSocket域名，若为空，默认为目标节点地址
 --tor-proxy Tor SOCKS5代理地址，如 127.0.0.1:9050
 --tor-hidden 以Tor隐藏服务模式启动
@@ -464,23 +464,23 @@ agent之间也与上面情况一致
 
 #### --tls-enable
 
-这两个参数admin&&agent用法一致，可用在主动&&被动模式下
+此参数admin&&agent用法一致，可用在主动&&被动模式下。
 
-通过设置此选项，可以将节点间流量以TLS加密
+日常使用只需要加 `--tls-enable`，节点间流量就会走TLS。未提供 `--tls-fingerprint` 时采用首次信任(TOFU)：客户端接受当前TLS证书并打印其 SHA256 指纹，便于首次记录。
 
-示例如下
+示例如下：
 - admin: `./shroud_admin -l 10000 --tls-enable -s 123`
 - agent: `./shroud_agent -c localhost:10000 --tls-enable -s 123`
 
-当此参数启用时，TLS将提供传输层加密，AES-256-GCM加密仍然有效，两者叠加提供纵深防御
+如需严格锁定证书，再额外指定 `--tls-fingerprint <sha256>`。指定后，后续连接必须匹配该指纹，否则拒绝连接。也就是说，**功能没有减少，只是把“必须显式选择 insecure/指纹”的参数入口简化为“默认TOFU，按需指纹锁定”**。
 
-当此参数启用时，**请保证网络中每一个节点(包括admin)都启用此参数**
+当此参数启用时，**请保证网络中每一个节点(包括admin)都启用此参数**。
 
-可通过`--tls-fingerprint`参数指定预期的TLS证书指纹，实现证书锁定。首次连接时会打印对端证书指纹供记录
+`--tls-insecure` 是旧版本兼容参数，当前不需要再手动设置。
 
 #### --domain
 
-这两个参数admin&&agent用法一致，仅可用在主动模式下
+此参数admin&&agent用法一致，仅可用在主动模式下
 
 通过设置此选项，可以设置当前此节点TLS协商时的SNI选项或者WebSocket的目标Host
 

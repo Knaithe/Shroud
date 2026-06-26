@@ -91,10 +91,6 @@ func certFingerprint(cert *tls.Certificate) string {
 }
 
 func NewClientTLSConfig(serverName string, expectedFingerprint string, insecure bool) (*tls.Config, error) {
-	if expectedFingerprint == "" && !insecure {
-		return nil, fmt.Errorf("TLS requires --tls-fingerprint or --tls-insecure")
-	}
-
 	base := &tls.Config{
 		InsecureSkipVerify: true,
 		ServerName:         serverName,
@@ -110,7 +106,11 @@ func NewClientTLSConfig(serverName string, expectedFingerprint string, insecure 
 					return fmt.Errorf("TLS fingerprint mismatch: got %s, expected %s", fp, expectedFingerprint)
 				}
 			} else {
-				fmt.Fprintf(os.Stderr, "[*] WARNING: TLS insecure mode. Server fingerprint: %s\n", fp)
+				if insecure {
+					fmt.Fprintf(os.Stderr, "[*] WARNING: --tls-insecure is deprecated and no longer required. Server fingerprint (SHA256): %s\n", fp)
+				} else {
+					fmt.Fprintf(os.Stderr, "[*] TLS server fingerprint (SHA256): %s\n", fp)
+				}
 			}
 			return nil
 		},

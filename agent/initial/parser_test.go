@@ -4,17 +4,14 @@ import (
 	"testing"
 )
 
-func TestCheckOptions_TLSEnableWithoutFingerprintOrInsecure(t *testing.T) {
+func TestCheckOptions_TLSEnableWithoutFingerprintAllowed(t *testing.T) {
 	opt := &Options{
 		Secret:    []byte("test-secret"),
 		TlsEnable: true,
 	}
 	err := checkOptions(opt)
-	if err == nil {
-		t.Fatal("expected error when --tls-enable set without fingerprint or insecure")
-	}
-	if err.Error() != "--tls-enable requires --tls-fingerprint or --tls-insecure" {
-		t.Fatalf("unexpected error message: %s", err.Error())
+	if err != nil {
+		t.Fatalf("expected no error when --tls-enable is set without fingerprint, got: %s", err.Error())
 	}
 }
 

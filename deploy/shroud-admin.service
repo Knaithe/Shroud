@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/opt/shroud/shroud_admin --daemon -c %i -s ${SHROUD_SECRET} --heartbeat --tls-enable --tls-insecure
+ExecStart=/opt/shroud/shroud_admin --daemon -c %i -s ${SHROUD_SECRET} --heartbeat --tls-enable
 EnvironmentFile=-/etc/shroud/admin.env
 Restart=on-failure
 RestartSec=10

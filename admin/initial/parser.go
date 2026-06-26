@@ -1,7 +1,6 @@
 package initial
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"net"
@@ -71,7 +70,7 @@ func init() {
 	flag.BoolVar(&args.TlsEnable, "tls-enable", false, "Encrypt connection by TLS")
 	flag.BoolVar(&args.Heartbeat, "heartbeat", true, "Send heartbeat packet to first agent")
 	flag.StringVar(&args.TlsFingerprint, "tls-fingerprint", "", "Expected TLS certificate SHA256 fingerprint for pinning")
-	flag.BoolVar(&args.TlsInsecure, "tls-insecure", false, "Allow TLS without certificate pinning (TOFU mode)")
+	flag.BoolVar(&args.TlsInsecure, "tls-insecure", false, "Deprecated compatibility flag; TLS without --tls-fingerprint is accepted by default")
 	flag.BoolVar(&args.Script, "script", false, "Read commands from stdin instead of interactive terminal")
 	flag.BoolVar(&args.Daemon, "daemon", false, "Run as headless daemon (no interactive terminal)")
 	flag.StringVar(&args.Magic, "magic", "", "4-byte preauth magic override")
@@ -193,10 +192,6 @@ func applyProtocolFingerprint(option *Options) {
 }
 
 func checkOptions(option *Options) error {
-	if option.TlsEnable && option.TlsFingerprint == "" && !option.TlsInsecure {
-		return errors.New("--tls-enable requires --tls-fingerprint or --tls-insecure")
-	}
-
 	var err error
 
 	if args.Connect != "" && !share.IsOnionAddress(args.Connect) {

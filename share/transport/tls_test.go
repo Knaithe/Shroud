@@ -120,23 +120,23 @@ func TestCertFingerprint_Deterministic(t *testing.T) {
 // NewClientTLSConfig
 // ---------------------------------------------------------------------------
 
-func TestNewClientTLSConfig_EmptyFingerprint_NotInsecure_Error(t *testing.T) {
-	_, err := NewClientTLSConfig("example.com", "", false)
-	if err == nil {
-		t.Fatal("expected error when fingerprint is empty and insecure=false")
+func TestNewClientTLSConfig_EmptyFingerprint_DefaultAcceptsAndPrints(t *testing.T) {
+	cfg, err := NewClientTLSConfig("example.com", "", false)
+	if err != nil {
+		t.Fatalf("unexpected error with empty fingerprint: %v", err)
 	}
-	if !strings.Contains(err.Error(), "TLS requires") {
-		t.Fatalf("unexpected error message: %v", err)
+	if cfg == nil {
+		t.Fatal("expected non-nil config with empty fingerprint")
 	}
 }
 
 func TestNewClientTLSConfig_EmptyFingerprint_Insecure_TOFU(t *testing.T) {
 	cfg, err := NewClientTLSConfig("example.com", "", true)
 	if err != nil {
-		t.Fatalf("unexpected error in insecure/TOFU mode: %v", err)
+		t.Fatalf("unexpected error with deprecated insecure flag: %v", err)
 	}
 	if cfg == nil {
-		t.Fatal("expected non-nil config in TOFU mode")
+		t.Fatal("expected non-nil config with deprecated insecure flag")
 	}
 }
 
@@ -216,21 +216,21 @@ func TestVerifyPeerCertificate_MismatchedFingerprint(t *testing.T) {
 	}
 }
 
-func TestVerifyPeerCertificate_InsecureMode(t *testing.T) {
+func TestVerifyPeerCertificate_EmptyFingerprintMode(t *testing.T) {
 	cert, err := newRandomTLSKeyPair()
 	if err != nil {
 		t.Fatalf("keypair error: %v", err)
 	}
 
-	cfg, err := NewClientTLSConfig("example.com", "", true)
+	cfg, err := NewClientTLSConfig("example.com", "", false)
 	if err != nil {
 		t.Fatalf("client config error: %v", err)
 	}
 
-	// Insecure mode should accept any cert (prints warning to stderr)
+	// Empty fingerprint mode accepts the certificate and prints its fingerprint.
 	err = cfg.VerifyPeerCertificate([][]byte{cert.Certificate[0]}, nil)
 	if err != nil {
-		t.Fatalf("VerifyPeerCertificate should pass in insecure mode: %v", err)
+		t.Fatalf("VerifyPeerCertificate should pass with empty fingerprint: %v", err)
 	}
 }
 

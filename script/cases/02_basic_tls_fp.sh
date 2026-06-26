@@ -8,8 +8,8 @@ source "$SCRIPT_DIR/lib/helpers.sh"
 TEST_NAME="02_basic_tls_fp"
 trap cleanup EXIT
 
-# Start admin with TLS enabled (insecure on server side to auto-generate cert)
-start_admin_listen "$PORT_BASE" "$SECRET" "--tls-enable --tls-insecure"
+# Start admin with TLS enabled and capture the generated certificate fingerprint.
+start_admin_listen "$PORT_BASE" "$SECRET" "--tls-enable"
 
 # Extract the fingerprint from admin log (stderr is merged into the log)
 # Format: [*] TLS certificate fingerprint (SHA256): <hex>

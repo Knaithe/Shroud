@@ -21,7 +21,7 @@ func TestCheckOptions_ValidMinimal(t *testing.T) {
 	}
 }
 
-func TestCheckOptions_TLSEnableWithoutFingerprintOrInsecure(t *testing.T) {
+func TestCheckOptions_TLSEnableWithoutFingerprintAllowed(t *testing.T) {
 	opt := &Options{
 		Secret:         []byte("mysecret"),
 		Listen:         "8080",
@@ -34,12 +34,8 @@ func TestCheckOptions_TLSEnableWithoutFingerprintOrInsecure(t *testing.T) {
 	defer func() { args = saved }()
 
 	err := checkOptions(opt)
-	if err == nil {
-		t.Fatal("expected error when --tls-enable is set without fingerprint or insecure")
-	}
-	expected := "--tls-enable requires --tls-fingerprint or --tls-insecure"
-	if err.Error() != expected {
-		t.Fatalf("unexpected error: %s", err.Error())
+	if err != nil {
+		t.Fatalf("expected no error when --tls-enable is set without fingerprint, got: %s", err.Error())
 	}
 }
 

@@ -6,4 +6,9 @@ __pycache__/
 .env
 coverage.out
 ansicon/
-deploy/test/
+
+# Local/private test scripts (may contain real IPs/credentials)
+test-local/
+
+# Personal test environment override (real IPs/passwords go here)
+script/test_env.local.sh

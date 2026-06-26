@@ -1,8 +1,12 @@
 #!/bin/bash
 # Shroud Integration Test Environment
 # Edit these variables before running tests
+#
+# TIP: To avoid committing real IPs/passwords, create:
+#   script/test_env.local.sh  (gitignored)
+# with overridden values. It will be sourced automatically if present.
 
-# Machine IPs
+# Machine IPs (placeholders — replace with real values or use .local.sh override)
 export IP_A="10.0.0.1"
 export IP_B="10.0.0.2"
 export IP_C="10.0.0.3"

@@ -143,10 +143,10 @@ docker rm -f s-a s-g 2>/dev/null
 # B2: TLS
 banner "B2. TLS Transport"
 docker run -d --name s-a --network s-net --entrypoint /opt/shroud/admin shroud-test \
-  --daemon -l 0.0.0.0:9999 -s "$SECRET" --identity-plain --identity-dir /tmp --tls-enable --tls-insecure 2>/dev/null
+  --daemon -l 0.0.0.0:9999 -s "$SECRET" --identity-plain --identity-dir /tmp --tls-enable 2>/dev/null
 sleep 3
 docker run -d --name s-g --network s-net --entrypoint /opt/shroud/agent shroud-test \
-  -c s-a:9999 -s "$SECRET" --identity-plain --identity-dir /tmp/tls --tls-enable --tls-insecure -v 2>/dev/null
+  -c s-a:9999 -s "$SECRET" --identity-plain --identity-dir /tmp/tls --tls-enable -v 2>/dev/null
 sleep 12
 docker logs s-a 2>&1 | grep -q "successfully" && ok "B2.1 TLS transport enrollment" \
   || fail "B2.1 TLS enrollment" "$(docker logs s-a 2>&1 | tail -3)"
@@ -155,10 +155,10 @@ docker rm -f s-a s-g 2>/dev/null
 # B3: WS + TLS
 banner "B3. WS + TLS Combo"
 docker run -d --name s-a --network s-net --entrypoint /opt/shroud/admin shroud-test \
-  --daemon -l 0.0.0.0:9999 -s "$SECRET" --identity-plain --identity-dir /tmp --tls-enable --tls-insecure --down ws 2>/dev/null
+  --daemon -l 0.0.0.0:9999 -s "$SECRET" --identity-plain --identity-dir /tmp --tls-enable --down ws 2>/dev/null
 sleep 3
 docker run -d --name s-g --network s-net --entrypoint /opt/shroud/agent shroud-test \
-  -c s-a:9999 -s "$SECRET" --identity-plain --identity-dir /tmp/wstls --tls-enable --tls-insecure --up ws -v 2>/dev/null
+  -c s-a:9999 -s "$SECRET" --identity-plain --identity-dir /tmp/wstls --tls-enable --up ws -v 2>/dev/null
 sleep 12
 docker logs s-a 2>&1 | grep -q "successfully" && ok "B3.1 WS+TLS combo enrollment" \
   || fail "B3.1 WS+TLS enrollment" "$(docker logs s-a 2>&1 | tail -3)"
