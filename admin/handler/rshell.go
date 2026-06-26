@@ -103,7 +103,6 @@ func DispatchRShellMess(mgr *manager.Manager) {
 
 		case *protocol.RShellStopDone:
 			mgr.RShellManager.StopDoneChan <- true
-			mgr.RShellManager.StopDoneChan <- true
 		}
 	}
 }

