@@ -186,7 +186,7 @@ By using this tool, you acknowledge that you have read, understood, and agreed t
 - One-time enrollment (`-s <secret>`): HMAC challenge-response mutual auth on first connect, Admin CA then auto-issues Ed25519 certificates for all subsequent connections
 - Five-layer encryption: TLS (optional `--tls-enable`) → LinkKey (X25519 ECDH+HKDF per-hop frame encryption) → CryptoKey (AES-256-GCM payload encryption) → E2E (per-peer ECDH end-to-end encryption) → Command Signing (Ed25519 + sequence number + 5-minute time window)
 - TLS fingerprint pinning (`--tls-fingerprint <sha256>`): prints peer certificate fingerprint on first connect, verifies consistency on subsequent connections
-- Identity file encryption (`--passphrase <passphrase>`): Argon2id key derivation (time=3, mem=64KB) + AES-256-GCM encrypted storage, also configurable via `SHROUD_PASSPHRASE` env var
+- Identity file encryption (`--passphrase <passphrase>`): Argon2id key derivation (time=3, mem=256MB) + AES-256-GCM encrypted storage, also configurable via `SHROUD_PASSPHRASE` env var
 - CA key separation (`--ca-file <path>`): CA root key can be stored offline, mounted only when issuing certificates
 
 **Anonymity & Stealth**

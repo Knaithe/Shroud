@@ -199,7 +199,7 @@ Shroud是一个利用go语言编写、专为渗透测试工作者制作的多级
 - 一次性注册(`-s <口令>`)：首次连接HMAC挑战-应答互认证，通过后Admin CA自动签发Ed25519证书，后续连接使用证书认证
 - 五层加密架构：TLS(可选`--tls-enable`) → LinkKey(X25519 ECDH+HKDF逐跳帧加密) → CryptoKey(AES-256-GCM载荷加密) → E2E(per-peer ECDH端到端加密) → 命令签名(Ed25519+序列号+5分钟时间窗口)
 - TLS指纹锁定(`--tls-fingerprint <sha256>`)：首次连接打印对端证书指纹，后续连接校验一致性
-- 身份文件加密(`--passphrase <口令>`)：Argon2id密钥派生(time=3,mem=64KB)+AES-256-GCM加密存储，也可通过`SHROUD_PASSPHRASE`环境变量设置
+- 身份文件加密(`--passphrase <口令>`)：Argon2id密钥派生(time=3,mem=256MB)+AES-256-GCM加密存储，也可通过`SHROUD_PASSPHRASE`环境变量设置
 - CA密钥分离(`--ca-file <路径>`)：CA根密钥可离线存储，仅签发证书时挂载
 - 协议版本协商(自动)：HI握手时交换版本号，版本不匹配打印警告（不拒绝连接），`invalid magic`报错时提示可能原因
 
@@ -1634,7 +1634,7 @@ rm -rf /tmp/sg*     # --identity-dir 指定的目录
 
 ### 版本不匹配警告
 
-握手时Admin和Agent会交换协议版本号。版本不匹配时会打印警告（如`version mismatch: local=v2.3 remote=v2.2`），但不会拒绝连接。建议保持Admin和Agent版本一致以获得最佳兼容性。
+握手时Admin和Agent会交换协议版本号。版本不匹配时会打印警告（如`version mismatch: local=v2.4 remote=v2.3`），但不会拒绝连接。建议保持Admin和Agent版本一致以获得最佳兼容性。
 
 ## 注意事项
 
