@@ -64,6 +64,8 @@ func NewHelper() *Helper {
 		"transport",
 		"newcircuit",
 		"shutdown",
+		"rshell",
+		"stoprshell",
 		"back",
 		"exit",
 	}

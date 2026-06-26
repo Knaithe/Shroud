@@ -1098,3 +1098,107 @@ func (m *RouteTableMsg) UnmarshalBinary(data []byte) error {
 	m.Entries = r.str(int(m.EntriesLen))
 	return r.err
 }
+
+// RShellListen
+
+func (m *RShellListen) MarshalBinary() []byte {
+	var w binWriter
+	w.putU16(m.PortLen)
+	w.putStr(m.Port)
+	return w.Bytes()
+}
+
+func (m *RShellListen) UnmarshalBinary(data []byte) error {
+	r := binReader{data: data}
+	m.PortLen = r.u16()
+	m.Port = r.str(int(m.PortLen))
+	return r.err
+}
+
+// RShellReady
+
+func (m *RShellReady) MarshalBinary() []byte {
+	var w binWriter
+	w.putU16(m.OK)
+	return w.Bytes()
+}
+
+func (m *RShellReady) UnmarshalBinary(data []byte) error {
+	r := binReader{data: data}
+	m.OK = r.u16()
+	return r.err
+}
+
+// RShellConn
+
+func (m *RShellConn) MarshalBinary() []byte {
+	var w binWriter
+	w.putU64(m.Seq)
+	return w.Bytes()
+}
+
+func (m *RShellConn) UnmarshalBinary(data []byte) error {
+	r := binReader{data: data}
+	m.Seq = r.u64()
+	return r.err
+}
+
+// RShellData
+
+func (m *RShellData) MarshalBinary() []byte {
+	var w binWriter
+	w.putU64(m.Seq)
+	w.putU64(m.DataLen)
+	w.putBytes(m.Data)
+	return w.Bytes()
+}
+
+func (m *RShellData) UnmarshalBinary(data []byte) error {
+	r := binReader{data: data}
+	m.Seq = r.u64()
+	m.DataLen = r.u64()
+	m.Data = r.readBytes(int(m.DataLen))
+	return r.err
+}
+
+// RShellFin
+
+func (m *RShellFin) MarshalBinary() []byte {
+	var w binWriter
+	w.putU64(m.Seq)
+	return w.Bytes()
+}
+
+func (m *RShellFin) UnmarshalBinary(data []byte) error {
+	r := binReader{data: data}
+	m.Seq = r.u64()
+	return r.err
+}
+
+// RShellStop
+
+func (m *RShellStop) MarshalBinary() []byte {
+	var w binWriter
+	w.putU16(m.All)
+	return w.Bytes()
+}
+
+func (m *RShellStop) UnmarshalBinary(data []byte) error {
+	r := binReader{data: data}
+	m.All = r.u16()
+	return r.err
+}
+
+// RShellStopDone
+
+func (m *RShellStopDone) MarshalBinary() []byte {
+	var w binWriter
+	w.putU16(m.All)
+	return w.Bytes()
+}
+
+func (m *RShellStopDone) UnmarshalBinary(data []byte) error {
+	r := binReader{data: data}
+	m.All = r.u16()
+	return r.err
+}

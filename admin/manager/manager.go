@@ -14,6 +14,7 @@ type Manager struct {
 	ConnectManager   *connectManager
 	ChildrenManager  *childrenManager
 	TransportManager *transportManager
+	RShellManager    *rshellManager
 }
 
 func NewManager() *Manager {
@@ -31,6 +32,7 @@ func NewManager() *Manager {
 	manager.ConnectManager = newConnectManager()
 	manager.ChildrenManager = newchildrenManager()
 	manager.TransportManager = newTransportManager()
+	manager.RShellManager = newRShellManager()
 	return manager
 }
 

@@ -33,6 +33,8 @@ var nodeCommands = map[string]command{
 	"delmemo":      {name: "delmemo", handler: (*Console).cmdDelMemo},
 	"shutdown":     {name: "shutdown", handler: (*Console).cmdShutdown},
 	"revoke":       {name: "revoke", handler: (*Console).cmdRevoke},
+	"rshell":       {name: "rshell", handler: (*Console).cmdRShell},
+	"stoprshell":   {name: "stoprshell", handler: (*Console).cmdStopRShell},
 }
 
 func (console *Console) expectParams(params []string, numbers interface{}, mode int, needToBeInt interface{}) bool {

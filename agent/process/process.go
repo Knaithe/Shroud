@@ -87,6 +87,8 @@ func (agent *Agent) Run() {
 	go DispatchOfflineMess(agent)
 	// run dispatcher to dispatch children's message
 	go agent.dispatchChildrenMess()
+	// run rshell dispatcher
+	go handler.DispatchRShellMess(ctx, agent.mgr)
 	// waiting for child
 	go agent.waitingChild()
 	// heartbeat watchdog
@@ -223,6 +225,14 @@ func (agent *Agent) handleDataFromUpstream() {
 					continue
 				}
 				agent.handleHeartbeat(header, hbMsg)
+			case protocol.RSHELLLISTEN:
+				fallthrough
+			case protocol.RSHELLDATA:
+				fallthrough
+			case protocol.RSHELLFIN:
+				fallthrough
+			case protocol.RSHELLSTOP:
+				agent.mgr.RShellManager.RShellMessChan <- message
 			case protocol.ROUTETABLE:
 				rtMsg, ok := message.(*protocol.RouteTableMsg)
 				if !ok {

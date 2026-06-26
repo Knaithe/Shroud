@@ -12,6 +12,7 @@ type Manager struct {
 	ListenManager    *listenManager
 	ConnectManager   *connectManager
 	OfflineManager   *offlineManager
+	RShellManager    *rshellManager
 }
 
 func NewManager() *Manager {
@@ -27,6 +28,7 @@ func NewManager() *Manager {
 	manager.ListenManager = newListenManager()
 	manager.ConnectManager = newConnectManager()
 	manager.OfflineManager = newOfflineManager()
+	manager.RShellManager = newRShellManager()
 	return manager
 }
 

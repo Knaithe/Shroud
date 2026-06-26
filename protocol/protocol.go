@@ -82,6 +82,13 @@ const (
 	TRANSPORTSWITCHDONE
 	ROUTETABLE
 	HEARTBEATACK
+	RSHELLLISTEN
+	RSHELLREADY
+	RSHELLCONN
+	RSHELLDATA
+	RSHELLFIN
+	RSHELLSTOP
+	RSHELLSTOPDONE
 )
 
 const SHROUD_VERSION = "v2.3"
@@ -506,6 +513,37 @@ type TransportSwitchDone struct {
 type RouteTableMsg struct {
 	EntriesLen uint32
 	Entries    string
+}
+
+type RShellListen struct {
+	PortLen uint16
+	Port    string
+}
+
+type RShellReady struct {
+	OK uint16
+}
+
+type RShellConn struct {
+	Seq uint64
+}
+
+type RShellData struct {
+	Seq     uint64
+	DataLen uint64
+	Data    []byte
+}
+
+type RShellFin struct {
+	Seq uint64
+}
+
+type RShellStop struct {
+	All uint16
+}
+
+type RShellStopDone struct {
+	All uint16
 }
 
 type MessageComponent struct {

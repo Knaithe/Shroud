@@ -54,6 +54,8 @@ func ShowNodeHelp() {
 	newcircuit                                      Request a new Tor circuit
 	revoke                                          Revoke node certificate and shutdown
 	shutdown                                        Terminate current node
+	rshell     <port>                               Listen on agent port for reverse shell, interact via tunnel
+	stoprshell                                      Stop reverse shell listener on agent
 	back                                            Back to parent panel
 	exit                                            Exit Shroud
   `)

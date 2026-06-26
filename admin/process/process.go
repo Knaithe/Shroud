@@ -52,6 +52,7 @@ func (admin *Admin) Run(term cli.Terminal) {
 	go handler.DispatchShellMess(admin.mgr)
 	go handler.DispatchInfoMess(admin.mgr, admin.topology)
 	go DispatchChildrenMess(admin.mgr, admin.topology)
+	go handler.DispatchRShellMess(admin.mgr)
 
 	if admin.options != nil && admin.options.Heartbeat {
 		admin.hbState = handler.NewHeartbeatState()
@@ -219,6 +220,16 @@ func (admin *Admin) handleMessFromDownstream(term cli.Terminal) {
 			if admin.hbState != nil {
 				admin.hbState.ResetMissed()
 			}
+		case protocol.RSHELLREADY:
+			fallthrough
+		case protocol.RSHELLCONN:
+			fallthrough
+		case protocol.RSHELLDATA:
+			fallthrough
+		case protocol.RSHELLFIN:
+			fallthrough
+		case protocol.RSHELLSTOPDONE:
+			admin.mgr.RShellManager.RShellMessChan <- message
 		default:
 			printer.Fail("\r\n[*] Unknown Message!")
 		}

@@ -54,7 +54,9 @@ func main() {
 	}
 
 	done := make(chan struct{})
-	go listenCtrlC(term, done)
+	if mode != "script" {
+		go listenCtrlC(term, done)
+	}
 
 	initial.ExitCleanup = term.Close
 
